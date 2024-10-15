@@ -10,6 +10,7 @@ import {
   setDoc,
   deleteDoc,
   where,
+  getDoc,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -52,13 +53,16 @@ function App() {
     setUser(currentUser);
     if (currentUser) {
       try {
+        console.log("Determining user role...");
         const role = await determineUserRole(currentUser);
         console.log("Determined user role:", role);
         setUserRole(role);
+        console.log("Fetching user data...");
         await fetchUserData(role, currentUser.email);
         console.log("User data fetched for role:", role);
       } catch (error) {
         console.error("Error determining user role or fetching data:", error);
+        console.error("Error details:", error.code, error.message);
         alert(
           "An error occurred while accessing your account. Please try again later."
         );
@@ -81,10 +85,12 @@ function App() {
   const determineUserRole = async (currentUser) => {
     console.log("Determining user role for:", currentUser.email);
     try {
+      console.log("Checking admin role...");
       const adminRole = await checkUserRole(currentUser.email, "admins");
       console.log("Admin role check result:", adminRole);
       if (adminRole) return "admin";
 
+      console.log("Checking mall owner role...");
       const mallOwnerRole = await checkUserRole(
         currentUser.email,
         "mallOwners"
@@ -92,6 +98,7 @@ function App() {
       console.log("Mall owner role check result:", mallOwnerRole);
       if (mallOwnerRole) return "mallOwner";
 
+      console.log("Checking user role...");
       const userRole = await checkUserRole(currentUser.email, "users");
       console.log("User role check result:", userRole);
       if (userRole) return "user";
@@ -100,6 +107,7 @@ function App() {
       return null;
     } catch (error) {
       console.error("Error checking user role:", error);
+      console.error("Error details:", error.code, error.message);
       throw error;
     }
   };
@@ -249,6 +257,11 @@ function App() {
           : role === "mallOwner"
           ? "mallOwners"
           : "users";
+
+      console.log("Current user role:", userRole);
+      console.log("Adding to collection:", collectionName);
+      console.log("New user data:", newUserData);
+
       const docRef = await addDoc(collection(db, collectionName), newUserData);
       console.log(`New ${role} added successfully with ID:`, docRef.id);
       alert(`New ${role} added successfully`);
@@ -256,25 +269,51 @@ function App() {
       return docRef.id;
     } catch (error) {
       console.error("Error adding new user:", error);
-      console.error("Error details:", error.code, error.message);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      console.error("Error details:", error.details);
       alert(`Error adding new ${role}: ${error.message}`);
     }
   };
 
   const updateUser = async (id, role, updatedData) => {
     try {
+      console.log(`Attempting to update user with ID: ${id}, role: ${role}`);
+      console.log("Updated data:", updatedData);
+      console.log("Current user role:", userRole);
+      console.log("Current user ID:", auth.currentUser.uid);
+
       const collectionName =
         role === "admin"
           ? "admins"
           : role === "mallOwner"
           ? "mallOwners"
           : "users";
+
+      console.log(`Updating in collection: ${collectionName}`);
+
       const docRef = doc(db, collectionName, id);
+
+      // Check if the document exists before updating
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) {
+        throw new Error(
+          `Document with ID ${id} does not exist in ${collectionName}`
+        );
+      }
+
       await setDoc(docRef, updatedData, { merge: true });
+
+      console.log("User updated successfully");
       alert("User updated successfully");
       fetchUserData(userRole, user.email);
     } catch (error) {
       console.error("Error updating user:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      console.error("Error details:", error.details);
+      console.error("Stack trace:", error.stack);
+      alert(`Error updating user: ${error.message}`);
     }
   };
 
@@ -292,6 +331,22 @@ function App() {
       fetchUserData(userRole, user.email);
     } catch (error) {
       console.error("Error deleting user:", error);
+    }
+  };
+
+  const createNewUser = async (userData) => {
+    if (userRole !== "admin") {
+      console.error("Only admins can create new users");
+      return;
+    }
+
+    try {
+      const docRef = await addDoc(collection(db, "users"), userData);
+      console.log("New user added with ID: ", docRef.id);
+      // Optionally, update your UI or state to reflect the new user
+    } catch (error) {
+      console.error("Error adding new user: ", error);
+      // Handle the error (e.g., show an error message to the user)
     }
   };
 
@@ -334,10 +389,12 @@ function App() {
                     <Users
                       adminData={adminData}
                       mallOwnerData={mallOwnerData}
+                      userData={userData}
                       userRole={userRole}
                       addNewUser={addNewUser}
                       updateUser={updateUser}
                       deleteUser={deleteUser}
+                      currentUserEmail={user.email}
                     />
                   }
                 />

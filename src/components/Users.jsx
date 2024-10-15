@@ -1,31 +1,69 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const Users = ({
   adminData,
   mallOwnerData,
+  userData,
   userRole,
   addNewUser,
   updateUser,
   deleteUser,
+  currentUserEmail,
 }) => {
-  const [editingId, setEditingId] = useState(null);
-  const [editedData, setEditedData] = useState({});
-  const [newUserData, setNewUserData] = useState({
+  const [users, setUsers] = useState([]);
+  const [newUser, setNewUser] = useState({
     email: "",
-    role: "user",
     firstName: "",
     lastName: "",
+    role: "user",
     vehicleNumber: "",
   });
+  const [editingUser, setEditingUser] = useState(null);
 
-  const handleEdit = (user) => {
-    setEditingId(user.id);
-    setEditedData({ ...user });
+  useEffect(() => {
+    if (userRole === "admin") {
+      setUsers([...adminData, ...mallOwnerData, ...userData]);
+    } else if (userRole === "mallOwner") {
+      setUsers(userData);
+    } else if (userRole === "user") {
+      setUsers(userData.filter((user) => user.email === currentUserEmail));
+    }
+  }, [adminData, mallOwnerData, userData, userRole, currentUserEmail]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    if (editingUser) {
+      setEditingUser({ ...editingUser, [name]: value });
+    } else {
+      setNewUser({ ...newUser, [name]: value });
+    }
   };
 
-  const handleSave = async () => {
-    await updateUser(editingId, editedData.role, editedData);
-    setEditingId(null);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (editingUser) {
+      await updateUser(editingUser.id, editingUser.role, editingUser);
+      setEditingUser(null);
+    } else {
+      await addNewUser(
+        newUser.email,
+        newUser.role,
+        newUser.firstName,
+        newUser.lastName,
+        newUser.vehicleNumber
+      );
+      setNewUser({
+        email: "",
+        firstName: "",
+        lastName: "",
+        role: "user",
+        vehicleNumber: "",
+      });
+    }
+  };
+
+  const handleEdit = (user) => {
+    setEditingUser(user);
   };
 
   const handleDelete = async (id, role) => {
@@ -34,212 +72,144 @@ const Users = ({
     }
   };
 
-  const handleChange = (e, field) => {
-    setEditedData({ ...editedData, [field]: e.target.value });
-  };
-
-  const handleNewUserChange = (e) => {
-    setNewUserData({ ...newUserData, [e.target.name]: e.target.value });
-  };
-
-  const handleAddNewUser = async (e) => {
-    e.preventDefault();
-    await addNewUser(
-      newUserData.email,
-      newUserData.role,
-      newUserData.firstName,
-      newUserData.lastName,
-      newUserData.role === "user" ? newUserData.vehicleNumber : null
+  const canEdit = (user) => {
+    return (
+      userRole === "admin" ||
+      (userRole === "user" && user.email === currentUserEmail)
     );
-    setNewUserData({
-      email: "",
-      role: "user",
-      firstName: "",
-      lastName: "",
-      vehicleNumber: "",
-    });
   };
 
-  const renderUserTable = (data, role) => (
-    <table className="min-w-full leading-normal">
-      <thead>
-        <tr>
-          <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-mainTextColor uppercase tracking-wider">
-            Email
-          </th>
-          <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-mainTextColor uppercase tracking-wider">
-            First Name
-          </th>
-          <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-mainTextColor uppercase tracking-wider">
-            Last Name
-          </th>
-          {role === "user" && (
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-mainTextColor uppercase tracking-wider">
-              Vehicle Number
-            </th>
-          )}
-          <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-mainTextColor uppercase tracking-wider">
-            Actions
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((user) => (
-          <tr key={user.id}>
-            <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-              {editingId === user.id ? (
-                <input
-                  type="email"
-                  value={editedData.email || ""}
-                  onChange={(e) => handleChange(e, "email")}
-                  className="border rounded px-2 py-1"
-                />
-              ) : (
-                user.email
-              )}
-            </td>
-            <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-              {editingId === user.id ? (
-                <input
-                  type="text"
-                  value={editedData.firstName || ""}
-                  onChange={(e) => handleChange(e, "firstName")}
-                  className="border rounded px-2 py-1"
-                />
-              ) : (
-                user.firstName
-              )}
-            </td>
-            <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-              {editingId === user.id ? (
-                <input
-                  type="text"
-                  value={editedData.lastName || ""}
-                  onChange={(e) => handleChange(e, "lastName")}
-                  className="border rounded px-2 py-1"
-                />
-              ) : (
-                user.lastName
-              )}
-            </td>
-            {role === "user" && (
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                {editingId === user.id ? (
-                  <input
-                    type="text"
-                    value={editedData.vehicleNumber || ""}
-                    onChange={(e) => handleChange(e, "vehicleNumber")}
-                    className="border rounded px-2 py-1"
-                  />
-                ) : (
-                  user.vehicleNumber
-                )}
-              </td>
-            )}
-            <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-              {editingId === user.id ? (
-                <button
-                  onClick={handleSave}
-                  className="text-green-600 hover:text-green-900 mr-2"
-                >
-                  Save
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => handleEdit(user)}
-                    className="text-blue-600 hover:text-blue-900 mr-2"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(user.id, role)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Delete
-                  </button>
-                </>
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+  const canDelete = (user) => {
+    return (
+      userRole === "admin" ||
+      (userRole === "user" && user.email === currentUserEmail)
+    );
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h2 className="text-2xl font-semibold mb-4 text-mainTextColor">Users</h2>
-      <div className="mb-8">
-        <h3 className="text-xl font-semibold mb-2 text-mainTextColor">
-          Add New User
-        </h3>
-        <form onSubmit={handleAddNewUser} className="space-y-4">
+      <h2 className="text-2xl font-semibold mb-4">Users Management</h2>
+
+      {userRole === "admin" && (
+        <form onSubmit={handleSubmit} className="mb-8">
           <input
             type="email"
             name="email"
-            value={newUserData.email}
-            onChange={handleNewUserChange}
+            value={editingUser ? editingUser.email : newUser.email}
+            onChange={handleInputChange}
             placeholder="Email"
-            className="border rounded px-2 py-1 w-full"
             required
+            className="mr-2 p-2 border rounded"
           />
           <input
             type="text"
             name="firstName"
-            value={newUserData.firstName}
-            onChange={handleNewUserChange}
+            value={editingUser ? editingUser.firstName : newUser.firstName}
+            onChange={handleInputChange}
             placeholder="First Name"
-            className="border rounded px-2 py-1 w-full"
             required
+            className="mr-2 p-2 border rounded"
           />
           <input
             type="text"
             name="lastName"
-            value={newUserData.lastName}
-            onChange={handleNewUserChange}
+            value={editingUser ? editingUser.lastName : newUser.lastName}
+            onChange={handleInputChange}
             placeholder="Last Name"
-            className="border rounded px-2 py-1 w-full"
             required
+            className="mr-2 p-2 border rounded"
           />
-          {newUserData.role === "user" && (
+          <select
+            name="role"
+            value={editingUser ? editingUser.role : newUser.role}
+            onChange={handleInputChange}
+            className="mr-2 p-2 border rounded"
+          >
+            <option value="user">User</option>
+            <option value="mallOwner">Mall Owner</option>
+            <option value="admin">Admin</option>
+          </select>
+          {(editingUser?.role === "user" || newUser.role === "user") && (
             <input
               type="text"
               name="vehicleNumber"
-              value={newUserData.vehicleNumber}
-              onChange={handleNewUserChange}
+              value={
+                editingUser
+                  ? editingUser.vehicleNumber || ""
+                  : newUser.vehicleNumber || ""
+              }
+              onChange={handleInputChange}
               placeholder="Vehicle Number"
-              className="border rounded px-2 py-1 w-full"
+              className="mr-2 p-2 border rounded"
             />
           )}
-          <select
-            name="role"
-            value={newUserData.role}
-            onChange={handleNewUserChange}
-            className="border rounded px-2 py-1 w-full"
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-            <option value="mallOwner">Mall Owner</option>
-          </select>
-          <button
-            type="submit"
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full"
-          >
-            Add User
+          <button type="submit" className="p-2 bg-blue-500 text-white rounded">
+            {editingUser ? "Update User" : "Add User"}
           </button>
         </form>
-      </div>
-      <div className="bg-white shadow-md rounded-lg overflow-x-auto mb-8">
-        <h3 className="text-xl font-semibold m-4 text-mainTextColor">Admins</h3>
-        {renderUserTable(adminData, "admin")}
-      </div>
-      <div className="bg-white shadow-md rounded-lg overflow-x-auto mb-8">
-        <h3 className="text-xl font-semibold m-4 text-mainTextColor">
-          Mall Owners
-        </h3>
-        {renderUserTable(mallOwnerData, "mallOwner")}
-      </div>
+      )}
+
+      <table className="min-w-full leading-normal">
+        <thead>
+          <tr>
+            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              Email
+            </th>
+            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              First Name
+            </th>
+            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              Last Name
+            </th>
+            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              Role
+            </th>
+            {userRole !== "mallOwner" && (
+              <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Actions
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                {user.email}
+              </td>
+              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                {user.firstName}
+              </td>
+              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                {user.lastName}
+              </td>
+              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                {user.role}
+              </td>
+              {userRole !== "mallOwner" && (
+                <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                  {canEdit(user) && (
+                    <button
+                      onClick={() => handleEdit(user)}
+                      className="text-blue-500 hover:text-blue-700 mr-2"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canDelete(user) && (
+                    <button
+                      onClick={() => handleDelete(user.id, user.role)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
