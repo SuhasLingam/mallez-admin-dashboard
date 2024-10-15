@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getFirestore,
@@ -7,7 +7,6 @@ import {
   query,
   addDoc,
   doc,
-  getDoc,
   setDoc,
   deleteDoc,
   where,
@@ -20,28 +19,14 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-  Navigate,
-} from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
 import Users from "./components/Users";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import Login from "./components/Login";
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
+import Profile from "./components/Profile";
+import { firebaseConfig } from "./config/firebaseConfig";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -53,85 +38,157 @@ function App() {
   const [user, setUser] = useState(null);
   const [adminData, setAdminData] = useState([]);
   const [mallOwnerData, setMallOwnerData] = useState([]);
+  const [userData, setUserData] = useState([]);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      console.log("Auth state changed:", currentUser);
-      setUser(currentUser);
-      if (currentUser) {
-        const role = await determineUserRole(currentUser);
-        console.log("Determined user role:", role);
-        await fetchUserData(role);
-      } else {
-        setAdminData([]);
-        setMallOwnerData([]);
-        setUserRole(null);
-      }
-      setLoading(false);
-    });
-
+    const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
     return () => unsubscribe();
   }, []);
 
-  const determineUserRole = async (currentUser) => {
-    console.log("Determining user role for:", currentUser.email);
-    const adminQuery = query(
-      collection(db, "admins"),
-      where("email", "==", currentUser.email)
-    );
-    const adminSnapshot = await getDocs(adminQuery);
-
-    if (!adminSnapshot.empty) {
-      console.log("User is an admin");
-      setUserRole("admin");
-      return "admin";
+  const handleAuthStateChange = async (currentUser) => {
+    console.log("Auth state changed, current user:", currentUser);
+    setUser(currentUser);
+    if (currentUser) {
+      try {
+        const role = await determineUserRole(currentUser);
+        console.log("Determined user role:", role);
+        setUserRole(role);
+        await fetchUserData(role, currentUser.email);
+        console.log("User data fetched for role:", role);
+      } catch (error) {
+        console.error("Error determining user role or fetching data:", error);
+        alert(
+          "An error occurred while accessing your account. Please try again later."
+        );
+        setUserRole(null);
+        await signOut(auth);
+      }
+    } else {
+      resetUserData();
     }
-
-    const mallOwnerQuery = query(
-      collection(db, "mallOwners"),
-      where("email", "==", currentUser.email)
-    );
-    const mallOwnerSnapshot = await getDocs(mallOwnerQuery);
-
-    if (!mallOwnerSnapshot.empty) {
-      console.log("User is a mall owner");
-      setUserRole("mallOwner");
-      return "mallOwner";
-    }
-
-    console.log("User is not authorized");
-    setUserRole("user");
-    return "user";
+    setLoading(false);
   };
 
-  const fetchUserData = async (role) => {
-    console.log("Fetching user data for role:", role);
-    if (role === "admin") {
-      const adminSnapshot = await getDocs(collection(db, "admins"));
-      const adminData = adminSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setAdminData(adminData);
+  const resetUserData = () => {
+    setAdminData([]);
+    setMallOwnerData([]);
+    setUserRole(null);
+    setUserData([]);
+  };
 
-      const mallOwnerSnapshot = await getDocs(collection(db, "mallOwners"));
-      const mallOwnerData = mallOwnerSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setMallOwnerData(mallOwnerData);
-    } else if (role === "mallOwner") {
-      const mallOwnerQuery = query(
-        collection(db, "mallOwners"),
-        where("email", "==", user.email)
+  const determineUserRole = async (currentUser) => {
+    console.log("Determining user role for:", currentUser.email);
+    try {
+      const adminRole = await checkUserRole(currentUser.email, "admins");
+      console.log("Admin role check result:", adminRole);
+      if (adminRole) return "admin";
+
+      const mallOwnerRole = await checkUserRole(
+        currentUser.email,
+        "mallOwners"
       );
-      const mallOwnerSnapshot = await getDocs(mallOwnerQuery);
-      if (!mallOwnerSnapshot.empty) {
-        const mallOwnerDoc = mallOwnerSnapshot.docs[0];
-        setMallOwnerData([{ id: mallOwnerDoc.id, ...mallOwnerDoc.data() }]);
+      console.log("Mall owner role check result:", mallOwnerRole);
+      if (mallOwnerRole) return "mallOwner";
+
+      const userRole = await checkUserRole(currentUser.email, "users");
+      console.log("User role check result:", userRole);
+      if (userRole) return "user";
+
+      console.log("No role found for user");
+      return null;
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      throw error;
+    }
+  };
+
+  const checkUserRole = async (email, collectionName) => {
+    try {
+      console.log(`Checking ${collectionName} role for email:`, email);
+      const q = query(
+        collection(db, collectionName),
+        where("email", "==", email)
+      );
+      const snapshot = await getDocs(q);
+      console.log(
+        `${collectionName} query result:`,
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+      console.log(`${collectionName} query empty:`, snapshot.empty);
+      return !snapshot.empty;
+    } catch (error) {
+      console.error(`Error checking ${collectionName} role:`, error);
+      throw error;
+    }
+  };
+
+  const fetchUserData = async (role, userEmail) => {
+    console.log("Fetching user data for role:", role);
+    try {
+      if (role === "admin") {
+        try {
+          await fetchCollectionData("admins", setAdminData);
+        } catch (error) {
+          console.error("Error fetching admin data:", error);
+        }
+        try {
+          await fetchCollectionData("mallOwners", setMallOwnerData);
+        } catch (error) {
+          console.error("Error fetching mall owner data:", error);
+        }
+        try {
+          await fetchCollectionData("users", setUserData);
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        }
+      } else if (role === "mallOwner") {
+        try {
+          await fetchMallOwnerData(userEmail);
+        } catch (error) {
+          console.error("Error fetching mall owner data:", error);
+        }
+        try {
+          await fetchCollectionData("users", setUserData);
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        }
       }
+      console.log("Admin data:", adminData);
+      console.log("Mall owner data:", mallOwnerData);
+      console.log("User data:", userData);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  const fetchCollectionData = async (collectionName, setDataFunction) => {
+    try {
+      console.log(`Fetching ${collectionName} data...`);
+      const snapshot = await getDocs(collection(db, collectionName));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setDataFunction(data);
+      console.log(`${collectionName} data fetched:`, data);
+    } catch (error) {
+      console.error(`Error fetching ${collectionName} data:`, error);
+      console.error(`Error details:`, error.code, error.message);
+      // You might want to set some error state here
+    }
+  };
+
+  const fetchMallOwnerData = async (userEmail) => {
+    const q = query(
+      collection(db, "mallOwners"),
+      where("email", "==", userEmail)
+    );
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const mallOwnerDoc = snapshot.docs[0];
+      setMallOwnerData([{ id: mallOwnerDoc.id, ...mallOwnerDoc.data() }]);
+      console.log("Mall owner data fetched:", mallOwnerData);
+    } else {
+      console.log("No mall owner data found for email:", userEmail);
     }
   };
 
@@ -155,13 +212,12 @@ function App() {
       const user = result.user;
       console.log("Google sign-in successful for:", user.email);
       const role = await determineUserRole(user);
-
-      if (role === "admin" || role === "mallOwner") {
-        console.log("Signed in successfully as:", role);
-      } else {
+      if (role === "user") {
         console.log("User not authorized, signing out");
         await signOut(auth);
         alert("You are not authorized to access this dashboard.");
+      } else {
+        console.log("Signed in successfully as:", role);
       }
     } catch (error) {
       console.error("Error signing in with Google:", error);
@@ -184,47 +240,39 @@ function App() {
     vehicleNumber
   ) => {
     try {
-      const newUserData = {
-        email,
-        firstName,
-        lastName,
-      };
-
-      if (role === "user") {
-        newUserData.vehicleNumber = vehicleNumber;
-      }
-
-      let docRef;
-      if (role === "admin") {
-        docRef = await addDoc(collection(db, "admins"), newUserData);
-      } else if (role === "mallOwner") {
-        docRef = await addDoc(collection(db, "mallOwners"), newUserData);
-      } else {
-        docRef = await addDoc(collection(db, "users"), newUserData);
-      }
-
+      console.log(`Attempting to add new ${role} with email: ${email}`);
+      const newUserData = { email, firstName, lastName, role };
+      if (role === "user") newUserData.vehicleNumber = vehicleNumber;
+      const collectionName =
+        role === "admin"
+          ? "admins"
+          : role === "mallOwner"
+          ? "mallOwners"
+          : "users";
+      const docRef = await addDoc(collection(db, collectionName), newUserData);
+      console.log(`New ${role} added successfully with ID:`, docRef.id);
       alert(`New ${role} added successfully`);
-      fetchUserData();
+      fetchUserData(userRole, user.email);
       return docRef.id;
     } catch (error) {
       console.error("Error adding new user:", error);
+      console.error("Error details:", error.code, error.message);
+      alert(`Error adding new ${role}: ${error.message}`);
     }
   };
 
   const updateUser = async (id, role, updatedData) => {
     try {
-      const docRef = doc(
-        db,
+      const collectionName =
         role === "admin"
           ? "admins"
           : role === "mallOwner"
           ? "mallOwners"
-          : "users",
-        id
-      );
+          : "users";
+      const docRef = doc(db, collectionName, id);
       await setDoc(docRef, updatedData, { merge: true });
       alert("User updated successfully");
-      fetchUserData();
+      fetchUserData(userRole, user.email);
     } catch (error) {
       console.error("Error updating user:", error);
     }
@@ -232,34 +280,33 @@ function App() {
 
   const deleteUser = async (id, role) => {
     try {
-      const docRef = doc(
-        db,
+      const collectionName =
         role === "admin"
           ? "admins"
           : role === "mallOwner"
           ? "mallOwners"
-          : "users",
-        id
-      );
+          : "users";
+      const docRef = doc(db, collectionName, id);
       await deleteDoc(docRef);
       alert("User deleted successfully");
-      fetchUserData();
+      fetchUserData(userRole, user.email);
     } catch (error) {
       console.error("Error deleting user:", error);
     }
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!user) {
+  if (loading) return <div>Loading...</div>;
+  if (!user)
     return <Login onLogin={handleLogin} onGoogleSignIn={handleGoogleSignIn} />;
-  }
-
-  if (userRole === "user") {
+  if (userRole === null)
+    return (
+      <div>
+        Your account is not associated with any role. Please contact an
+        administrator.
+      </div>
+    );
+  if (userRole === "user")
     return <div>You are not authorized to access this dashboard.</div>;
-  }
 
   return (
     <Router>
@@ -276,6 +323,7 @@ function App() {
                     adminData={adminData}
                     mallOwnerData={mallOwnerData}
                     userRole={userRole}
+                    userData={userData}
                   />
                 }
               />
@@ -300,6 +348,21 @@ function App() {
                   element={<div>Mall Statistics Page (To be implemented)</div>}
                 />
               )}
+              <Route
+                path="/profile"
+                element={
+                  <Profile
+                    userData={
+                      userRole === "admin"
+                        ? adminData.find((admin) => admin.email === user.email)
+                        : mallOwnerData.find(
+                            (owner) => owner.email === user.email
+                          )
+                    }
+                    userRole={userRole}
+                  />
+                }
+              />
             </Routes>
           </main>
         </div>

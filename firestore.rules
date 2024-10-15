@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    function isMallOwner() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/mallOwners/$(request.auth.uid));
+    }
+    
+    function isUser() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    
+    match /admins/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    
+    match /mallOwners/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+      allow update: if isUser() && request.auth.uid == userId;
+    }
+  }
+}

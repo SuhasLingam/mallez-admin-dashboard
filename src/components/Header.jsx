@@ -1,11 +1,16 @@
 import React from "react";
 
 const Header = ({ user, onLogout, userRole }) => {
+  const dashboardTitle =
+    userRole === "mallOwner"
+      ? "Mall Owners Dashboard"
+      : "Mallez Admin Dashboard";
+
   return (
     <header className="bg-white shadow-md py-4 px-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-800">
-          Mallez Admin Dashboard
+          {dashboardTitle}
         </h1>
         <div className="flex items-center">
           <span className="text-sm text-gray-600 mr-4">
