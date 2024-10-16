@@ -37,11 +37,11 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
 
   const renderSidebarContent = () => (
     <>
-      <div className="p-4 flex justify-between items-center">
+      <div className="flex items-center justify-between p-4">
         <h2 className="text-xl font-semibold text-white">Mallez</h2>
         <button
           onClick={toggleSidebar}
-          className="p-1 rounded-full hover:bg-gray-700 transition-colors lg:hidden"
+          className="hover:bg-gray-700 lg:hidden p-1 transition-colors rounded-full"
         >
           <FaTimes className="text-white" />
         </button>
@@ -62,7 +62,7 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
               }
             }}
           >
-            <span className="text-xl mr-4">{item.icon}</span>
+            <span className="mr-4 text-xl">{item.icon}</span>
             <span>{item.label}</span>
           </Link>
         ))}
@@ -73,7 +73,7 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block w-64 bg-gray-800 text-white h-screen fixed left-0 top-0 overflow-y-auto">
+      <div className="lg:block fixed top-0 left-0 hidden w-64 h-screen overflow-y-auto text-white bg-gray-800">
         {renderSidebarContent()}
       </div>
 
@@ -86,7 +86,7 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+              className="lg:hidden fixed inset-0 z-40 bg-black bg-opacity-50"
               onClick={toggleSidebar}
             />
             <motion.div
@@ -95,13 +95,21 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
               exit="closed"
               variants={sidebarVariants}
               transition={{ duration: 0.3 }}
-              className="fixed left-0 top-0 bottom-0 w-64 bg-gray-800 text-white z-50 overflow-y-auto lg:hidden"
+              className="lg:hidden fixed top-0 bottom-0 left-0 z-50 w-64 overflow-y-auto text-white bg-gray-800"
             >
               {renderSidebarContent()}
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {/* Mobile Toggle Button */}
+      <button
+        onClick={toggleSidebar}
+        className="bottom-4 right-4 lg:hidden fixed z-50 p-3 text-white bg-gray-800 rounded-full shadow-lg"
+      >
+        {isOpen ? <FaChevronLeft /> : <FaChevronRight />}
+      </button>
     </>
   );
 };
