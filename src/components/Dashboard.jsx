@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../config/firebaseConfig"; // Ensure this is your Firebase configuration file
-import { FaUsers, FaUserTie, FaUserShield, FaUser } from "react-icons/fa";
+import { db } from "../config/firebaseConfig";
+import { FaUsers, FaUserTie, FaUserShield, FaSearch } from "react-icons/fa";
 
 const Dashboard = ({ userRole }) => {
   const [selectedUserType, setSelectedUserType] = useState(
@@ -12,15 +12,15 @@ const Dashboard = ({ userRole }) => {
   const [userData, setUserData] = useState([]);
   const [displayData, setDisplayData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetching users collection data
   useEffect(() => {
     fetchData();
   }, [selectedUserType]);
 
   useEffect(() => {
-    console.log("Current displayData:", displayData);
-  }, [displayData]);
+    filterData();
+  }, [searchTerm, selectedUserType, adminData, mallOwnerData, userData]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -70,28 +70,81 @@ const Dashboard = ({ userRole }) => {
         setDisplayData(userData);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      // Error handling could be improved here, e.g., setting an error state
     } finally {
       setIsLoading(false);
     }
   };
+
+  const filterData = () => {
+    let dataToFilter = [];
+    switch (selectedUserType) {
+      case "admins":
+        dataToFilter = adminData;
+        break;
+      case "mallOwners":
+        dataToFilter = mallOwnerData;
+        break;
+      case "users":
+        dataToFilter = userData;
+        break;
+      default:
+        dataToFilter = [];
+    }
+
+    const filteredData = dataToFilter.filter((item) => {
+      const searchString = searchTerm.toLowerCase();
+      return (
+        item.email.toLowerCase().includes(searchString) ||
+        item.firstName.toLowerCase().includes(searchString) ||
+        item.lastName.toLowerCase().includes(searchString) ||
+        (item.vehicleNumbers &&
+          item.vehicleNumbers.some((vn) =>
+            vn.toLowerCase().includes(searchString)
+          ))
+      );
+    });
+
+    setDisplayData(filteredData);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const renderSearchBar = () => (
+    <div className="mb-4">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Search by name, email, or vehicle number"
+          value={searchTerm}
+          onChange={handleSearchChange}
+          className="focus:border-blue-500 focus:outline-none focus:ring w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border rounded-lg"
+        />
+        <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+          <FaSearch className="text-gray-400" />
+        </div>
+      </div>
+    </div>
+  );
 
   const renderUserTable = (data) => (
     <div className="overflow-x-auto">
       <table className="min-w-full leading-normal">
         <thead>
           <tr>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Email
             </th>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               First Name
             </th>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Last Name
             </th>
             {selectedUserType === "users" && (
-              <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
                 Vehicle Numbers
               </th>
             )}
@@ -100,17 +153,17 @@ const Dashboard = ({ userRole }) => {
         <tbody>
           {data.map((item) => (
             <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {item.email}
               </td>
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {item.firstName}
               </td>
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {item.lastName}
               </td>
               {selectedUserType === "users" && (
-                <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                   {item.vehicleNumbers && item.vehicleNumbers.length > 0 ? (
                     <ul className="list-disc list-inside">
                       {item.vehicleNumbers.map((vn, index) => (
@@ -133,7 +186,7 @@ const Dashboard = ({ userRole }) => {
     <div className="mb-6">
       <label
         htmlFor="userType"
-        className="block text-sm font-medium text-gray-700 mb-2"
+        className="block mb-2 text-sm font-medium text-gray-700"
       >
         Select User Type:
       </label>
@@ -159,23 +212,23 @@ const Dashboard = ({ userRole }) => {
   );
 
   const renderUserCounts = () => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div className="bg-white rounded-lg shadow-md p-4 flex items-center">
-        <FaUserShield className="text-3xl text-purple-500 mr-4" />
+    <div className="md:grid-cols-3 grid grid-cols-1 gap-4 mb-6">
+      <div className="flex items-center p-4 bg-white rounded-lg shadow-md">
+        <FaUserShield className="mr-4 text-3xl text-purple-500" />
         <div>
           <h4 className="text-lg font-semibold">Admins</h4>
           <p className="text-2xl font-bold">{adminData.length}</p>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow-md p-4 flex items-center">
-        <FaUserTie className="text-3xl text-green-500 mr-4" />
+      <div className="flex items-center p-4 bg-white rounded-lg shadow-md">
+        <FaUserTie className="mr-4 text-3xl text-green-500" />
         <div>
           <h4 className="text-lg font-semibold">Mall Owners</h4>
           <p className="text-2xl font-bold">{mallOwnerData.length}</p>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow-md p-4 flex items-center">
-        <FaUsers className="text-3xl text-blue-500 mr-4" />
+      <div className="flex items-center p-4 bg-white rounded-lg shadow-md">
+        <FaUsers className="mr-4 text-3xl text-blue-500" />
         <div>
           <h4 className="text-lg font-semibold">Total Users</h4>
           <p className="text-2xl font-bold">{userData.length}</p>
@@ -185,21 +238,22 @@ const Dashboard = ({ userRole }) => {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h2 className="text-3xl font-semibold mb-6 text-gray-800">Dashboard</h2>
+    <div className="container px-4 py-8 mx-auto">
+      <h2 className="mb-6 text-3xl font-semibold text-gray-800">Dashboard</h2>
       {userRole === "admin" && renderUserCounts()}
       {userRole === "admin" && renderUserTypeSelector()}
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      {renderSearchBar()}
+      <div className="overflow-hidden bg-white rounded-lg shadow-lg">
         <div className="p-6">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">
+          <h3 className="mb-4 text-xl font-semibold text-gray-800">
             {userRole === "admin"
               ? selectedUserType.charAt(0).toUpperCase() +
                 selectedUserType.slice(1)
               : "Users"}
           </h3>
           {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin w-12 h-12 border-b-2 border-gray-900 rounded-full"></div>
             </div>
           ) : (
             renderUserTable(displayData)

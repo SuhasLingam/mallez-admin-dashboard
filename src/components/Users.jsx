@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { FaEdit, FaTrash, FaUserPlus, FaPlus, FaMinus } from "react-icons/fa";
+import {
+  FaEdit,
+  FaTrash,
+  FaUserPlus,
+  FaPlus,
+  FaMinus,
+  FaSearch,
+} from "react-icons/fa";
 
 const Users = ({
   adminData,
@@ -12,6 +19,7 @@ const Users = ({
   currentUserEmail,
 }) => {
   const [users, setUsers] = useState([]);
+  const [displayUsers, setDisplayUsers] = useState([]);
   const [newUser, setNewUser] = useState({
     email: "",
     firstName: "",
@@ -21,6 +29,7 @@ const Users = ({
   });
   const [editingUser, setEditingUser] = useState(null);
   const [vehicleNumbers, setVehicleNumbers] = useState([""]);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (userRole === "admin") {
@@ -31,6 +40,47 @@ const Users = ({
       setUsers(userData.filter((user) => user.email === currentUserEmail));
     }
   }, [adminData, mallOwnerData, userData, userRole, currentUserEmail]);
+
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchTerm]);
+
+  const filterUsers = () => {
+    const filteredUsers = users.filter((user) => {
+      const searchString = searchTerm.toLowerCase();
+      return (
+        user.email.toLowerCase().includes(searchString) ||
+        user.firstName.toLowerCase().includes(searchString) ||
+        user.lastName.toLowerCase().includes(searchString) ||
+        (user.vehicleNumbers &&
+          user.vehicleNumbers.some((vn) =>
+            vn.toLowerCase().includes(searchString)
+          ))
+      );
+    });
+    setDisplayUsers(filteredUsers);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const renderSearchBar = () => (
+    <div className="mb-4">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Search by name, email, or vehicle number"
+          value={searchTerm}
+          onChange={handleSearchChange}
+          className="focus:border-blue-500 focus:outline-none focus:ring w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border rounded-lg"
+        />
+        <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+          <FaSearch className="text-gray-400" />
+        </div>
+      </div>
+    </div>
+  );
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -116,17 +166,17 @@ const Users = ({
   const renderUserForm = () => (
     <form
       onSubmit={handleSubmit}
-      className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4"
+      className="px-8 pt-6 pb-8 mb-4 bg-white rounded shadow-md"
     >
       <div className="mb-4">
         <label
-          className="block text-gray-700 text-sm font-bold mb-2"
+          className="block mb-2 text-sm font-bold text-gray-700"
           htmlFor="email"
         >
           Email
         </label>
         <input
-          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          className="focus:outline-none focus:shadow-outline w-full px-3 py-2 leading-tight text-gray-700 border rounded shadow appearance-none"
           id="email"
           type="email"
           name="email"
@@ -138,13 +188,13 @@ const Users = ({
       </div>
       <div className="mb-4">
         <label
-          className="block text-gray-700 text-sm font-bold mb-2"
+          className="block mb-2 text-sm font-bold text-gray-700"
           htmlFor="firstName"
         >
           First Name
         </label>
         <input
-          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          className="focus:outline-none focus:shadow-outline w-full px-3 py-2 leading-tight text-gray-700 border rounded shadow appearance-none"
           id="firstName"
           type="text"
           name="firstName"
@@ -156,13 +206,13 @@ const Users = ({
       </div>
       <div className="mb-4">
         <label
-          className="block text-gray-700 text-sm font-bold mb-2"
+          className="block mb-2 text-sm font-bold text-gray-700"
           htmlFor="lastName"
         >
           Last Name
         </label>
         <input
-          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          className="focus:outline-none focus:shadow-outline w-full px-3 py-2 leading-tight text-gray-700 border rounded shadow appearance-none"
           id="lastName"
           type="text"
           name="lastName"
@@ -174,13 +224,13 @@ const Users = ({
       </div>
       <div className="mb-4">
         <label
-          className="block text-gray-700 text-sm font-bold mb-2"
+          className="block mb-2 text-sm font-bold text-gray-700"
           htmlFor="role"
         >
           Role
         </label>
         <select
-          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          className="focus:outline-none focus:shadow-outline w-full px-3 py-2 leading-tight text-gray-700 border rounded shadow appearance-none"
           id="role"
           name="role"
           value={editingUser ? editingUser.role : newUser.role}
@@ -194,7 +244,7 @@ const Users = ({
       {(editingUser?.role === "user" || newUser.role === "user") && (
         <div className="mb-4">
           <label
-            className="block text-gray-700 text-sm font-bold mb-2"
+            className="block mb-2 text-sm font-bold text-gray-700"
             htmlFor="vehicleNumbers"
           >
             Vehicle Numbers
@@ -202,7 +252,7 @@ const Users = ({
           {vehicleNumbers.map((vn, index) => (
             <div key={index} className="flex items-center mb-2">
               <input
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mr-2"
+                className="focus:outline-none focus:shadow-outline w-full px-3 py-2 mr-2 leading-tight text-gray-700 border rounded shadow appearance-none"
                 type="text"
                 value={vn}
                 onChange={(e) =>
@@ -214,7 +264,7 @@ const Users = ({
                 <button
                   type="button"
                   onClick={addVehicleNumberField}
-                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                  className="hover:bg-green-700 px-4 py-2 font-bold text-white bg-green-500 rounded"
                 >
                   <FaPlus />
                 </button>
@@ -222,7 +272,7 @@ const Users = ({
                 <button
                   type="button"
                   onClick={() => removeVehicleNumberField(index)}
-                  className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                  className="hover:bg-red-700 px-4 py-2 font-bold text-white bg-red-500 rounded"
                 >
                   <FaMinus />
                 </button>
@@ -233,14 +283,14 @@ const Users = ({
       )}
       <div className="flex items-center justify-between">
         <button
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          className="hover:bg-blue-700 focus:outline-none focus:shadow-outline px-4 py-2 font-bold text-white bg-blue-500 rounded"
           type="submit"
         >
           {editingUser ? "Update User" : "Add User"}
         </button>
         {editingUser && (
           <button
-            className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            className="hover:bg-gray-700 focus:outline-none focus:shadow-outline px-4 py-2 font-bold text-white bg-gray-500 rounded"
             onClick={() => setEditingUser(null)}
           >
             Cancel
@@ -255,44 +305,44 @@ const Users = ({
       <table className="min-w-full leading-normal">
         <thead>
           <tr>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Email
             </th>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               First Name
             </th>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Last Name
             </th>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Role
             </th>
-            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Vehicle Numbers
             </th>
             {userRole !== "mallOwner" && (
-              <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
                 Actions
               </th>
             )}
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => (
+          {displayUsers.map((user) => (
             <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {user.email}
               </td>
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {user.firstName}
               </td>
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {user.lastName}
               </td>
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {user.role}
               </td>
-              <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+              <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {user.vehicleNumbers && user.vehicleNumbers.length > 0 ? (
                   <ul className="list-disc list-inside">
                     {user.vehicleNumbers.map((vn, index) => (
@@ -304,11 +354,11 @@ const Users = ({
                 )}
               </td>
               {userRole !== "mallOwner" && (
-                <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                   {canEdit(user) && (
                     <button
                       onClick={() => handleEdit(user)}
-                      className="text-blue-500 hover:text-blue-700 mr-2"
+                      className="hover:text-blue-700 mr-2 text-blue-500"
                     >
                       <FaEdit />
                     </button>
@@ -316,7 +366,7 @@ const Users = ({
                   {canDelete(user) && (
                     <button
                       onClick={() => handleDelete(user.id, user.role)}
-                      className="text-red-500 hover:text-red-700"
+                      className="hover:text-red-700 text-red-500"
                     >
                       <FaTrash />
                     </button>
@@ -331,23 +381,24 @@ const Users = ({
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h2 className="text-3xl font-semibold mb-6 text-gray-800">
+    <div className="container px-4 py-8 mx-auto">
+      <h2 className="mb-6 text-3xl font-semibold text-gray-800">
         Users Management
       </h2>
       {userRole === "admin" && !editingUser && (
         <button
           onClick={() => setEditingUser({})}
-          className="mb-4 bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
+          className="hover:bg-green-700 inline-flex items-center px-4 py-2 mb-4 font-bold text-white bg-green-500 rounded"
         >
           <FaUserPlus className="mr-2" />
           Add New User
         </button>
       )}
       {(userRole === "admin" || editingUser) && renderUserForm()}
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+      {renderSearchBar()}
+      <div className="overflow-hidden bg-white rounded-lg shadow-lg">
         <div className="p-6">
-          <h3 className="text-xl font-semibold mb-4 text-gray-800">
+          <h3 className="mb-4 text-xl font-semibold text-gray-800">
             User List
           </h3>
           {renderUserTable()}

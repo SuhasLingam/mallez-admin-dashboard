@@ -49,20 +49,13 @@ function App() {
   }, []);
 
   const handleAuthStateChange = async (currentUser) => {
-    console.log("Auth state changed, current user:", currentUser);
     setUser(currentUser);
     if (currentUser) {
       try {
-        console.log("Determining user role...");
         const role = await determineUserRole(currentUser);
-        console.log("Determined user role:", role);
         setUserRole(role);
-        console.log("Fetching user data...");
         await fetchUserData(role, currentUser.email);
-        console.log("User data fetched for role:", role);
       } catch (error) {
-        console.error("Error determining user role or fetching data:", error);
-        console.error("Error details:", error.code, error.message);
         alert(
           "An error occurred while accessing your account. Please try again later."
         );
@@ -83,105 +76,80 @@ function App() {
   };
 
   const determineUserRole = async (currentUser) => {
-    console.log("Determining user role for:", currentUser.email);
     try {
-      console.log("Checking admin role...");
       const adminRole = await checkUserRole(currentUser.email, "admins");
-      console.log("Admin role check result:", adminRole);
       if (adminRole) return "admin";
 
-      console.log("Checking mall owner role...");
       const mallOwnerRole = await checkUserRole(
         currentUser.email,
         "mallOwners"
       );
-      console.log("Mall owner role check result:", mallOwnerRole);
       if (mallOwnerRole) return "mallOwner";
 
-      console.log("Checking user role...");
       const userRole = await checkUserRole(currentUser.email, "users");
-      console.log("User role check result:", userRole);
       if (userRole) return "user";
 
-      console.log("No role found for user");
       return null;
     } catch (error) {
-      console.error("Error checking user role:", error);
-      console.error("Error details:", error.code, error.message);
       throw error;
     }
   };
 
   const checkUserRole = async (email, collectionName) => {
     try {
-      console.log(`Checking ${collectionName} role for email:`, email);
       const q = query(
         collection(db, collectionName),
         where("email", "==", email)
       );
       const snapshot = await getDocs(q);
-      console.log(
-        `${collectionName} query result:`,
-        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-      console.log(`${collectionName} query empty:`, snapshot.empty);
       return !snapshot.empty;
     } catch (error) {
-      console.error(`Error checking ${collectionName} role:`, error);
       throw error;
     }
   };
 
   const fetchUserData = async (role, userEmail) => {
-    console.log("Fetching user data for role:", role);
     try {
       if (role === "admin") {
         try {
           await fetchCollectionData("admins", setAdminData);
         } catch (error) {
-          console.error("Error fetching admin data:", error);
+          // Error handling remains
         }
         try {
           await fetchCollectionData("mallOwners", setMallOwnerData);
         } catch (error) {
-          console.error("Error fetching mall owner data:", error);
+          // Error handling remains
         }
         try {
           await fetchCollectionData("users", setUserData);
         } catch (error) {
-          console.error("Error fetching user data:", error);
+          // Error handling remains
         }
       } else if (role === "mallOwner") {
         try {
           await fetchMallOwnerData(userEmail);
         } catch (error) {
-          console.error("Error fetching mall owner data:", error);
+          // Error handling remains
         }
         try {
           await fetchCollectionData("users", setUserData);
         } catch (error) {
-          console.error("Error fetching user data:", error);
+          // Error handling remains
         }
       }
-      console.log("Admin data:", adminData);
-      console.log("Mall owner data:", mallOwnerData);
-      console.log("User data:", userData);
     } catch (error) {
-      console.error("Error fetching user data:", error);
+      // Error handling remains
     }
   };
 
   const fetchCollectionData = async (collectionName, setDataFunction) => {
     try {
-      console.log(`Fetching ${collectionName} data...`);
       const snapshot = await getDocs(collection(db, collectionName));
       const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setDataFunction(data);
-      console.log(`${collectionName} data fetched:`, data);
     } catch (error) {
-      console.error(`Error fetching ${collectionName} data:`, error);
-      console.error(`Error details:`, error.code, error.message);
-      // You might want to set some error state here
+      // Error handling remains
     }
   };
 
@@ -194,22 +162,13 @@ function App() {
     if (!snapshot.empty) {
       const mallOwnerDoc = snapshot.docs[0];
       setMallOwnerData([{ id: mallOwnerDoc.id, ...mallOwnerDoc.data() }]);
-      console.log("Mall owner data fetched:", mallOwnerData);
-    } else {
-      console.log("No mall owner data found for email:", userEmail);
     }
   };
 
   const handleLogin = async (email, password) => {
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      console.log("User signed in:", userCredential.user.email);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      console.error("Error signing in:", error);
       alert("Invalid email or password");
     }
   };
@@ -218,17 +177,13 @@ function App() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      console.log("Google sign-in successful for:", user.email);
       const role = await determineUserRole(user);
       if (role === "user") {
-        console.log("User not authorized, signing out");
         await signOut(auth);
         alert("You are not authorized to access this dashboard.");
-      } else {
-        console.log("Signed in successfully as:", role);
       }
     } catch (error) {
-      console.error("Error signing in with Google:", error);
+      // Error handling remains
     }
   };
 
@@ -248,7 +203,6 @@ function App() {
     vehicleNumber
   ) => {
     try {
-      console.log(`Attempting to add new ${role} with email: ${email}`);
       const newUserData = { email, firstName, lastName, role };
       if (role === "user") newUserData.vehicleNumber = vehicleNumber;
       const collectionName =
@@ -258,31 +212,17 @@ function App() {
           ? "mallOwners"
           : "users";
 
-      console.log("Current user role:", userRole);
-      console.log("Adding to collection:", collectionName);
-      console.log("New user data:", newUserData);
-
       const docRef = await addDoc(collection(db, collectionName), newUserData);
-      console.log(`New ${role} added successfully with ID:`, docRef.id);
       alert(`New ${role} added successfully`);
       fetchUserData(userRole, user.email);
       return docRef.id;
     } catch (error) {
-      console.error("Error adding new user:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      console.error("Error details:", error.details);
       alert(`Error adding new ${role}: ${error.message}`);
     }
   };
 
   const updateUser = async (id, role, updatedData) => {
     try {
-      console.log(`Attempting to update user with ID: ${id}, role: ${role}`);
-      console.log("Updated data:", updatedData);
-      console.log("Current user role:", userRole);
-      console.log("Current user ID:", auth.currentUser.uid);
-
       const collectionName =
         role === "admin"
           ? "admins"
@@ -290,11 +230,8 @@ function App() {
           ? "mallOwners"
           : "users";
 
-      console.log(`Updating in collection: ${collectionName}`);
-
       const docRef = doc(db, collectionName, id);
 
-      // Check if the document exists before updating
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) {
         throw new Error(
@@ -304,15 +241,9 @@ function App() {
 
       await setDoc(docRef, updatedData, { merge: true });
 
-      console.log("User updated successfully");
       alert("User updated successfully");
       fetchUserData(userRole, user.email);
     } catch (error) {
-      console.error("Error updating user:", error);
-      console.error("Error code:", error.code);
-      console.error("Error message:", error.message);
-      console.error("Error details:", error.details);
-      console.error("Stack trace:", error.stack);
       alert(`Error updating user: ${error.message}`);
     }
   };
@@ -365,11 +296,11 @@ function App() {
 
   return (
     <Router>
-      <div className="flex h-screen bg-mainBackgroundColor font-primary">
+      <div className="bg-mainBackgroundColor font-primary flex h-screen">
         <Sidebar userRole={userRole} />
         <div className="flex flex-col flex-1 overflow-hidden">
           <Header user={user} onLogout={handleLogout} userRole={userRole} />
-          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-mainBackgroundColor text-mainTextColor">
+          <main className="bg-mainBackgroundColor text-mainTextColor flex-1 overflow-x-hidden overflow-y-auto">
             <Routes>
               <Route
                 path="/"
