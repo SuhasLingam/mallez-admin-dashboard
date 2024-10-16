@@ -1,63 +1,42 @@
-import React, { useState } from "react";
+import React from "react";
 import { FaUserCircle, FaSignOutAlt, FaBell, FaBars } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 
 const Header = ({ user, onLogout, userRole, toggleSidebar }) => {
-  const [showDropdown, setShowDropdown] = useState(false);
-
   const dashboardTitle =
-    userRole === "mallOwner"
-      ? "Mall Owners Dashboard"
-      : "Mallez Admin Dashboard";
+    userRole === "admin" ? "Admin Dashboard" : "Mall Owner Dashboard";
 
   return (
-    <header className="px-6 py-4 bg-white shadow-md">
-      <div className="flex items-center justify-between">
+    <header className="bg-white shadow-md">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">{dashboardTitle}</h1>
         <div className="flex items-center">
+          <span className="mr-4">{user.email}</span>
+          <button
+            onClick={onLogout}
+            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+          >
+            Logout
+          </button>
           <button
             onClick={toggleSidebar}
-            className="lg:hidden focus:outline-none mr-4 text-gray-600"
+            className="ml-4 lg:hidden bg-gray-200 p-2 rounded-md"
           >
-            <FaBars className="w-6 h-6" />
-          </button>
-          <h1 className="text-xl font-semibold text-gray-800">
-            {dashboardTitle}
-          </h1>
-        </div>
-        <div className="flex items-center">
-          <div className="relative">
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="focus:outline-none flex items-center"
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              <FaUserCircle className="w-8 h-8 text-gray-600" />
-              <span className="md:inline-block hidden ml-2 text-sm text-gray-700">
-                {user.email}
-              </span>
-            </button>
-            <AnimatePresence>
-              {showDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-0 z-10 w-48 mt-2 overflow-hidden bg-white rounded-md shadow-xl"
-                >
-                  <div className="px-4 py-2 text-sm text-gray-700">
-                    {userRole}
-                  </div>
-                  <button
-                    onClick={onLogout}
-                    className="hover:bg-gray-100 block w-full px-4 py-2 text-sm text-left text-gray-700 transition-colors duration-150"
-                  >
-                    <FaSignOutAlt className="inline-block mr-2" />
-                    Sign out
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </button>
         </div>
       </div>
     </header>

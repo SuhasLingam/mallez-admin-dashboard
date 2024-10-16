@@ -30,6 +30,9 @@ import Login from "./components/Login";
 import Profile from "./components/Profile";
 import { firebaseConfig } from "./config/firebaseConfig";
 import LoadingSpinner from "./components/LoadingSpinner";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import UnauthorizedModal from "./components/UnauthorizedModal";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -46,6 +49,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [isUnauthorizedModalOpen, setIsUnauthorizedModalOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -53,21 +57,60 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (userRole === "admin") {
+      document.title = "Admin Dashboard";
+    } else if (userRole === "mallOwner") {
+      document.title = "Mall Owner Dashboard";
+    } else {
+      document.title = "Dashboard";
+    }
+  }, [userRole]);
+
   const handleAuthStateChange = async (currentUser) => {
-    setUser(currentUser);
+    console.log("Auth state changed. Current user:", currentUser);
     if (currentUser) {
       try {
         const role = await determineUserRole(currentUser);
-        setUserRole(role);
-        await fetchUserData(role, currentUser.email);
+        console.log("Determined role:", role);
+        if (role === "user" || role === null) {
+          console.log("Unauthorized user, signing out");
+          await signOut(auth);
+          setUser(null);
+          setUserRole(null);
+          resetUserData();
+          setAuthError("You are not authorized to access this dashboard.");
+          console.log("Setting unauthorized modal to open");
+          setIsUnauthorizedModalOpen(true);
+          console.log("Showing unauthorized toast");
+          toast.error("Unauthorized access. You have been signed out.", {
+            toastId: "unauthorized-signout",
+          });
+        } else {
+          console.log("Authorized user, setting up user data");
+          setUser(currentUser);
+          setUserRole(role);
+          await fetchUserData(role, currentUser.email);
+          console.log("Showing welcome toast");
+          toast.success(`Welcome, ${currentUser.email}!`, {
+            toastId: "welcome-user",
+          });
+        }
       } catch (error) {
-        alert(
-          "An error occurred while accessing your account. Please try again later."
+        console.error("Error during auth state change:", error);
+        toast.error(
+          "An error occurred while accessing your account. Please try again later.",
+          {
+            toastId: "auth-state-change-error",
+          }
         );
-        setUserRole(null);
         await signOut(auth);
+        setUser(null);
+        setUserRole(null);
+        resetUserData();
       }
     } else {
+      console.log("No current user, resetting data");
       resetUserData();
     }
     setLoading(false);
@@ -173,8 +216,9 @@ function App() {
   const handleLogin = async (email, password) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Toast is not needed here as it will be shown in handleAuthStateChange
     } catch (error) {
-      alert("Invalid email or password");
+      toast.error("Invalid email or password");
     }
   };
 
@@ -191,18 +235,19 @@ function App() {
         console.log("Unauthorized role, signing out");
         await signOut(auth);
         setAuthError("You are not authorized to access this dashboard.");
+        setIsUnauthorizedModalOpen(true);
+        toast.error("You are not authorized to access this dashboard.");
       } else {
         console.log("Authorized role, setting user and fetching data");
         setUser(user);
         setUserRole(role);
         await fetchUserData(role, user.email);
         navigate("/");
+        toast.success(`Welcome, ${user.email}!`);
       }
     } catch (error) {
       console.error("Error during Google Sign-In:", error);
-      setAuthError(
-        "An error occurred during Google Sign-In. Please try again."
-      );
+      toast.error("An error occurred during Google Sign-In. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -300,38 +345,58 @@ function App() {
 
   const updateUserProfile = async (updatedData) => {
     try {
-      const userDocRef = doc(
-        db,
-        userRole === "admin"
-          ? "admins"
-          : userRole === "mallOwner"
-          ? "mallOwners"
-          : "users",
-        user.uid
+      let userDocRef;
+      let collectionName;
+
+      if (userRole === "admin") {
+        collectionName = "admins";
+      } else if (userRole === "mallOwner") {
+        collectionName = "mallOwners";
+      } else {
+        collectionName = "users";
+      }
+
+      // First, query the collection to find the document with matching email
+      const q = query(
+        collection(db, collectionName),
+        where("email", "==", user.email)
       );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        throw new Error(`No ${userRole} found with email ${user.email}`);
+      }
+
+      // Use the first matching document's ID
+      userDocRef = doc(db, collectionName, querySnapshot.docs[0].id);
+
       await updateDoc(userDocRef, updatedData);
+
       // Update local state
       if (userRole === "admin") {
         setAdminData(
           adminData.map((admin) =>
-            admin.id === user.uid ? { ...admin, ...updatedData } : admin
+            admin.email === user.email ? { ...admin, ...updatedData } : admin
           )
         );
       } else if (userRole === "mallOwner") {
         setMallOwnerData(
           mallOwnerData.map((owner) =>
-            owner.id === user.uid ? { ...owner, ...updatedData } : owner
+            owner.email === user.email ? { ...owner, ...updatedData } : owner
           )
         );
       } else {
         setUserData(
           userData.map((u) =>
-            u.id === user.uid ? { ...u, ...updatedData } : u
+            u.email === user.email ? { ...u, ...updatedData } : u
           )
         );
       }
+
+      toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Error updating user profile:", error);
+      toast.error(`Error updating profile: ${error.message}`);
       throw error;
     }
   };
@@ -343,107 +408,121 @@ function App() {
       setUserRole(null);
       resetUserData();
       navigate("/");
+      toast.info("You have been logged out.");
     } catch (error) {
       console.error("Error signing out:", error);
-      alert("An error occurred while signing out. Please try again.");
+      toast.error("An error occurred while signing out. Please try again.");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-  if (!user)
-    return (
-      <Login
-        onLogin={handleLogin}
-        onGoogleSignIn={handleGoogleSignIn}
-        authError={authError}
-      />
-    );
-  if (userRole === null)
-    return (
-      <div>
-        Your account is not associated with any role. Please contact an
-        administrator.
-      </div>
-    );
-  if (userRole === "user")
-    return <div>You are not authorized to access this dashboard.</div>;
+  const closeUnauthorizedModal = () => {
+    setIsUnauthorizedModalOpen(false);
+  };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar
-        userRole={userRole}
-        isOpen={isSidebarOpen}
-        toggleSidebar={toggleSidebar}
+    <>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
       />
-      <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
-        <Header
-          user={user}
-          onLogout={handleLogout}
-          userRole={userRole}
-          toggleSidebar={toggleSidebar}
+      {loading ? (
+        <div className="flex items-center justify-center min-h-screen bg-gray-100">
+          <LoadingSpinner />
+        </div>
+      ) : !user ? (
+        <Login
+          onLogin={handleLogin}
+          onGoogleSignIn={handleGoogleSignIn}
+          authError={authError}
         />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Dashboard
-                  adminData={adminData}
-                  mallOwnerData={mallOwnerData}
-                  userRole={userRole}
-                  userData={userData}
-                />
-              }
+      ) : userRole === null ? (
+        <div>
+          Your account is not associated with any role. Please contact an
+          administrator.
+        </div>
+      ) : userRole === "user" ? (
+        <div>You are not authorized to access this dashboard.</div>
+      ) : (
+        <div className="flex h-screen bg-gray-100">
+          <Sidebar
+            userRole={userRole}
+            isOpen={isSidebarOpen}
+            toggleSidebar={toggleSidebar}
+          />
+          <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
+            <Header
+              user={user}
+              onLogout={handleLogout}
+              userRole={userRole}
+              toggleSidebar={toggleSidebar}
             />
-            {userRole === "admin" && (
-              <Route
-                path="/users"
-                element={
-                  <Users
-                    adminData={adminData}
-                    mallOwnerData={mallOwnerData}
-                    userData={userData}
-                    userRole={userRole}
-                    addNewUser={addNewUser}
-                    updateUser={updateUser}
-                    deleteUser={deleteUser}
-                    currentUserEmail={user.email}
-                  />
-                }
-              />
-            )}
-            {userRole === "mallOwner" && (
-              <Route
-                path="/mall-statistics"
-                element={<div>Mall Statistics Page (To be implemented)</div>}
-              />
-            )}
-            <Route
-              path="/profile"
-              element={
-                <Profile
-                  userData={
-                    userRole === "admin"
-                      ? adminData.find((admin) => admin.email === user.email)
-                      : mallOwnerData.find(
-                          (owner) => owner.email === user.email
-                        )
+            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <Dashboard
+                      adminData={adminData}
+                      mallOwnerData={mallOwnerData}
+                      userRole={userRole}
+                      userData={userData}
+                    />
                   }
-                  userRole={userRole}
-                  updateUserProfile={updateUserProfile}
                 />
-              }
-            />
-          </Routes>
-        </main>
-      </div>
-    </div>
+                {userRole === "admin" && (
+                  <Route
+                    path="/users"
+                    element={
+                      <Users
+                        adminData={adminData}
+                        mallOwnerData={mallOwnerData}
+                        userData={userData}
+                        userRole={userRole}
+                        addNewUser={addNewUser}
+                        updateUser={updateUser}
+                        deleteUser={deleteUser}
+                        currentUserEmail={user.email}
+                      />
+                    }
+                  />
+                )}
+                {userRole === "mallOwner" && (
+                  <Route
+                    path="/mall-statistics"
+                    element={
+                      <div>Mall Statistics Page (To be implemented)</div>
+                    }
+                  />
+                )}
+                <Route
+                  path="/profile"
+                  element={
+                    <Profile
+                      userData={
+                        userRole === "admin"
+                          ? adminData.find(
+                              (admin) => admin.email === user.email
+                            )
+                          : mallOwnerData.find(
+                              (owner) => owner.email === user.email
+                            )
+                      }
+                      userRole={userRole}
+                      updateUserProfile={updateUserProfile}
+                    />
+                  }
+                />
+              </Routes>
+            </main>
+          </div>
+        </div>
+      )}
+      <UnauthorizedModal
+        isOpen={isUnauthorizedModalOpen}
+        onClose={closeUnauthorizedModal}
+      />
+    </>
   );
 }
 
