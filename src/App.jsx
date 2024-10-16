@@ -19,7 +19,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from "firebase/auth";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
@@ -29,6 +30,7 @@ import Header from "./components/Header";
 import Login from "./components/Login";
 import Profile from "./components/Profile";
 import { firebaseConfig } from "./config/firebaseConfig";
+import LoadingSpinner from "./components/LoadingSpinner";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -177,17 +179,31 @@ function App() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      const role = await determineUserRole(user);
-      if (role === "user") {
-        await signOut(auth);
-        alert("You are not authorized to access this dashboard.");
-      }
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
-      // Error handling remains
+      console.error("Error during Google Sign-In:", error);
     }
   };
+
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          const user = result.user;
+          const role = await determineUserRole(user);
+          if (role === "user") {
+            await signOut(auth);
+            alert("You are not authorized to access this dashboard.");
+          }
+        }
+      } catch (error) {
+        console.error("Error handling redirect result:", error);
+      }
+    };
+
+    handleRedirectResult();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -325,7 +341,13 @@ function App() {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <LoadingSpinner />
+      </div>
+    );
+  }
   if (!user)
     return <Login onLogin={handleLogin} onGoogleSignIn={handleGoogleSignIn} />;
   if (userRole === null)

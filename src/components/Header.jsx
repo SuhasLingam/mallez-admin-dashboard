@@ -11,30 +11,27 @@ const Header = ({ user, onLogout, userRole, toggleSidebar }) => {
       : "Mallez Admin Dashboard";
 
   return (
-    <header className="bg-white shadow-md py-4 px-6">
+    <header className="px-6 py-4 bg-white shadow-md">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
           <button
             onClick={toggleSidebar}
-            className="mr-4 text-gray-600 lg:hidden focus:outline-none"
+            className="lg:hidden focus:outline-none mr-4 text-gray-600"
           >
-            <FaBars className="h-6 w-6" />
+            <FaBars className="w-6 h-6" />
           </button>
           <h1 className="text-xl font-semibold text-gray-800">
             {dashboardTitle}
           </h1>
         </div>
         <div className="flex items-center">
-          <button className="mr-4 text-gray-600 focus:outline-none">
-            <FaBell className="h-6 w-6" />
-          </button>
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center focus:outline-none"
+              className="focus:outline-none flex items-center"
             >
-              <FaUserCircle className="h-8 w-8 text-gray-600" />
-              <span className="ml-2 text-sm text-gray-700 hidden md:inline-block">
+              <FaUserCircle className="w-8 h-8 text-gray-600" />
+              <span className="md:inline-block hidden ml-2 text-sm text-gray-700">
                 {user.email}
               </span>
             </button>
@@ -45,14 +42,14 @@ const Header = ({ user, onLogout, userRole, toggleSidebar }) => {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-2 w-48 bg-white rounded-md overflow-hidden shadow-xl z-10"
+                  className="absolute right-0 z-10 w-48 mt-2 overflow-hidden bg-white rounded-md shadow-xl"
                 >
                   <div className="px-4 py-2 text-sm text-gray-700">
                     {userRole}
                   </div>
                   <button
                     onClick={onLogout}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
+                    className="hover:bg-gray-100 block w-full px-4 py-2 text-sm text-left text-gray-700 transition-colors duration-150"
                   >
                     <FaSignOutAlt className="inline-block mr-2" />
                     Sign out
