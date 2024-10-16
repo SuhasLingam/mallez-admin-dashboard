@@ -19,10 +19,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
 } from "firebase/auth";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
 import Dashboard from "./components/Dashboard";
 import Users from "./components/Users";
 import Sidebar from "./components/Sidebar";
@@ -46,6 +45,8 @@ function App() {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
@@ -179,37 +180,31 @@ function App() {
 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      setLoading(true);
+      setAuthError(null);
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      console.log("User from Google Sign-In:", user);
+      const role = await determineUserRole(user);
+      console.log("Determined user role:", role);
+      if (role === "user" || role === null) {
+        console.log("Unauthorized role, signing out");
+        await signOut(auth);
+        setAuthError("You are not authorized to access this dashboard.");
+      } else {
+        console.log("Authorized role, setting user and fetching data");
+        setUser(user);
+        setUserRole(role);
+        await fetchUserData(role, user.email);
+        navigate("/");
+      }
     } catch (error) {
       console.error("Error during Google Sign-In:", error);
-    }
-  };
-
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          const user = result.user;
-          const role = await determineUserRole(user);
-          if (role === "user") {
-            await signOut(auth);
-            alert("You are not authorized to access this dashboard.");
-          }
-        }
-      } catch (error) {
-        console.error("Error handling redirect result:", error);
-      }
-    };
-
-    handleRedirectResult();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Error signing out:", error);
+      setAuthError(
+        "An error occurred during Google Sign-In. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -341,6 +336,19 @@ function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setUserRole(null);
+      resetUserData();
+      navigate("/");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      alert("An error occurred while signing out. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -349,7 +357,13 @@ function App() {
     );
   }
   if (!user)
-    return <Login onLogin={handleLogin} onGoogleSignIn={handleGoogleSignIn} />;
+    return (
+      <Login
+        onLogin={handleLogin}
+        onGoogleSignIn={handleGoogleSignIn}
+        authError={authError}
+      />
+    );
   if (userRole === null)
     return (
       <div>
@@ -361,77 +375,75 @@ function App() {
     return <div>You are not authorized to access this dashboard.</div>;
 
   return (
-    <Router>
-      <div className="flex h-screen bg-gray-100">
-        <Sidebar
+    <div className="flex h-screen bg-gray-100">
+      <Sidebar
+        userRole={userRole}
+        isOpen={isSidebarOpen}
+        toggleSidebar={toggleSidebar}
+      />
+      <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
+        <Header
+          user={user}
+          onLogout={handleLogout}
           userRole={userRole}
-          isOpen={isSidebarOpen}
           toggleSidebar={toggleSidebar}
         />
-        <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
-          <Header
-            user={user}
-            onLogout={handleLogout}
-            userRole={userRole}
-            toggleSidebar={toggleSidebar}
-          />
-          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
-            <Routes>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <Dashboard
+                  adminData={adminData}
+                  mallOwnerData={mallOwnerData}
+                  userRole={userRole}
+                  userData={userData}
+                />
+              }
+            />
+            {userRole === "admin" && (
               <Route
-                path="/"
+                path="/users"
                 element={
-                  <Dashboard
+                  <Users
                     adminData={adminData}
                     mallOwnerData={mallOwnerData}
-                    userRole={userRole}
                     userData={userData}
-                  />
-                }
-              />
-              {userRole === "admin" && (
-                <Route
-                  path="/users"
-                  element={
-                    <Users
-                      adminData={adminData}
-                      mallOwnerData={mallOwnerData}
-                      userData={userData}
-                      userRole={userRole}
-                      addNewUser={addNewUser}
-                      updateUser={updateUser}
-                      deleteUser={deleteUser}
-                      currentUserEmail={user.email}
-                    />
-                  }
-                />
-              )}
-              {userRole === "mallOwner" && (
-                <Route
-                  path="/mall-statistics"
-                  element={<div>Mall Statistics Page (To be implemented)</div>}
-                />
-              )}
-              <Route
-                path="/profile"
-                element={
-                  <Profile
-                    userData={
-                      userRole === "admin"
-                        ? adminData.find((admin) => admin.email === user.email)
-                        : mallOwnerData.find(
-                            (owner) => owner.email === user.email
-                          )
-                    }
                     userRole={userRole}
-                    updateUserProfile={updateUserProfile}
+                    addNewUser={addNewUser}
+                    updateUser={updateUser}
+                    deleteUser={deleteUser}
+                    currentUserEmail={user.email}
                   />
                 }
               />
-            </Routes>
-          </main>
-        </div>
+            )}
+            {userRole === "mallOwner" && (
+              <Route
+                path="/mall-statistics"
+                element={<div>Mall Statistics Page (To be implemented)</div>}
+              />
+            )}
+            <Route
+              path="/profile"
+              element={
+                <Profile
+                  userData={
+                    userRole === "admin"
+                      ? adminData.find((admin) => admin.email === user.email)
+                      : mallOwnerData.find(
+                          (owner) => owner.email === user.email
+                        )
+                  }
+                  userRole={userRole}
+                  updateUserProfile={updateUserProfile}
+                />
+              }
+            />
+          </Routes>
+        </main>
       </div>
-    </Router>
+    </div>
   );
 }
 
