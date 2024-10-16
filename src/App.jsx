@@ -33,6 +33,7 @@ import LoadingSpinner from "./components/LoadingSpinner";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import UnauthorizedModal from "./components/UnauthorizedModal";
+import ToastManager from "./components/ToastManager";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -411,6 +412,12 @@ function App() {
         position="top-right"
         autoClose={3000}
         hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
       />
       {loading ? (
         <div className="flex items-center justify-center min-h-screen bg-gray-100">
