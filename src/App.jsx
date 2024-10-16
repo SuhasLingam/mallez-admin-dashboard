@@ -11,6 +11,7 @@ import {
   deleteDoc,
   where,
   getDoc,
+  updateDoc,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -42,6 +43,7 @@ function App() {
   const [userData, setUserData] = useState([]);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
@@ -281,6 +283,48 @@ function App() {
     }
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const updateUserProfile = async (updatedData) => {
+    try {
+      const userDocRef = doc(
+        db,
+        userRole === "admin"
+          ? "admins"
+          : userRole === "mallOwner"
+          ? "mallOwners"
+          : "users",
+        user.uid
+      );
+      await updateDoc(userDocRef, updatedData);
+      // Update local state
+      if (userRole === "admin") {
+        setAdminData(
+          adminData.map((admin) =>
+            admin.id === user.uid ? { ...admin, ...updatedData } : admin
+          )
+        );
+      } else if (userRole === "mallOwner") {
+        setMallOwnerData(
+          mallOwnerData.map((owner) =>
+            owner.id === user.uid ? { ...owner, ...updatedData } : owner
+          )
+        );
+      } else {
+        setUserData(
+          userData.map((u) =>
+            u.id === user.uid ? { ...u, ...updatedData } : u
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      throw error;
+    }
+  };
+
   if (loading) return <div>Loading...</div>;
   if (!user)
     return <Login onLogin={handleLogin} onGoogleSignIn={handleGoogleSignIn} />;
@@ -296,11 +340,20 @@ function App() {
 
   return (
     <Router>
-      <div className="bg-mainBackgroundColor font-primary flex h-screen">
-        <Sidebar userRole={userRole} />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header user={user} onLogout={handleLogout} userRole={userRole} />
-          <main className="bg-mainBackgroundColor text-mainTextColor flex-1 overflow-x-hidden overflow-y-auto">
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar
+          userRole={userRole}
+          isOpen={isSidebarOpen}
+          toggleSidebar={toggleSidebar}
+        />
+        <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
+          <Header
+            user={user}
+            onLogout={handleLogout}
+            userRole={userRole}
+            toggleSidebar={toggleSidebar}
+          />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
             <Routes>
               <Route
                 path="/"
@@ -348,6 +401,7 @@ function App() {
                           )
                     }
                     userRole={userRole}
+                    updateUserProfile={updateUserProfile}
                   />
                 }
               />
