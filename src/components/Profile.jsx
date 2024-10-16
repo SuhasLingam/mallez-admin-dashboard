@@ -28,7 +28,6 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
       setIsEditing(false);
       toast.success("Profile updated successfully!");
     } catch (error) {
-      console.error("Error updating profile:", error);
       toast.error("Failed to update profile. Please try again.");
     }
   };

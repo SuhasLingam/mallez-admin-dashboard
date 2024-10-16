@@ -242,7 +242,6 @@ const Users = ({
 
       toast.success("User role updated successfully");
     } catch (error) {
-      console.error("Error updating user role:", error);
       toast.error("Failed to update user role: " + error.message);
     } finally {
       setIsLoading(false);
@@ -294,7 +293,6 @@ const Users = ({
       toast.success("User updated successfully");
       closeModal();
     } catch (error) {
-      console.error("Error updating user:", error);
       toast.error("Failed to update user: " + error.message);
     } finally {
       setIsLoading(false);
@@ -325,7 +323,6 @@ const Users = ({
       }
       toast.success("User deleted successfully");
     } catch (error) {
-      console.error("Error deleting user:", error);
       toast.error("Failed to delete user: " + error.message);
     } finally {
       setIsLoading(false);

@@ -68,36 +68,28 @@ function App() {
   }, [userRole]);
 
   const handleAuthStateChange = async (currentUser) => {
-    console.log("Auth state changed. Current user:", currentUser);
     if (currentUser) {
       try {
         const role = await determineUserRole(currentUser);
-        console.log("Determined role:", role);
         if (role === "user" || role === null) {
-          console.log("Unauthorized user, signing out");
           await signOut(auth);
           setUser(null);
           setUserRole(null);
           resetUserData();
           setAuthError("You are not authorized to access this dashboard.");
-          console.log("Setting unauthorized modal to open");
           setIsUnauthorizedModalOpen(true);
-          console.log("Showing unauthorized toast");
           toast.error("Unauthorized access. You have been signed out.", {
             toastId: "unauthorized-signout",
           });
         } else {
-          console.log("Authorized user, setting up user data");
           setUser(currentUser);
           setUserRole(role);
           await fetchUserData(role, currentUser.email);
-          console.log("Showing welcome toast");
           toast.success(`Welcome, ${currentUser.email}!`, {
             toastId: "welcome-user",
           });
         }
       } catch (error) {
-        console.error("Error during auth state change:", error);
         toast.error(
           "An error occurred while accessing your account. Please try again later.",
           {
@@ -110,7 +102,6 @@ function App() {
         resetUserData();
       }
     } else {
-      console.log("No current user, resetting data");
       resetUserData();
     }
     setLoading(false);
@@ -228,17 +219,13 @@ function App() {
       setAuthError(null);
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      console.log("User from Google Sign-In:", user);
       const role = await determineUserRole(user);
-      console.log("Determined user role:", role);
       if (role === "user" || role === null) {
-        console.log("Unauthorized role, signing out");
         await signOut(auth);
         setAuthError("You are not authorized to access this dashboard.");
         setIsUnauthorizedModalOpen(true);
         toast.error("You are not authorized to access this dashboard.");
       } else {
-        console.log("Authorized role, setting user and fetching data");
         setUser(user);
         setUserRole(role);
         await fetchUserData(role, user.email);
@@ -246,7 +233,6 @@ function App() {
         toast.success(`Welcome, ${user.email}!`);
       }
     } catch (error) {
-      console.error("Error during Google Sign-In:", error);
       toast.error("An error occurred during Google Sign-In. Please try again.");
     } finally {
       setLoading(false);
