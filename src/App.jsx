@@ -34,6 +34,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import UnauthorizedModal from "./components/UnauthorizedModal";
 import ToastManager from "./components/ToastManager";
+import MallChains from "./components/MallChains";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -506,6 +507,12 @@ function App() {
                     />
                   }
                 />
+                {(userRole === "admin" || userRole === "mallOwner") && (
+                  <Route
+                    path="/mall-chains"
+                    element={<MallChains userRole={userRole} />}
+                  />
+                )}
               </Routes>
             </main>
           </div>

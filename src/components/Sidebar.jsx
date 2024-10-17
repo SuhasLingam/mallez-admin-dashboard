@@ -7,6 +7,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaTimes,
+  FaBuilding,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -24,6 +25,15 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
             path: "/mall-statistics",
             label: "Mall Statistics",
             icon: <FaChartBar />,
+          },
+        ]
+      : []),
+    ...(userRole === "admin" || userRole === "mallOwner"
+      ? [
+          {
+            path: "/mall-chains",
+            label: "Mall Chains",
+            icon: <FaBuilding />,
           },
         ]
       : []),
