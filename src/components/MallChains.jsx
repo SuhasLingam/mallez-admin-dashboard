@@ -8,7 +8,15 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "../config/firebaseConfig";
-import { FaEdit, FaTrash, FaPlus, FaSearch } from "react-icons/fa";
+import {
+  FaEdit,
+  FaTrash,
+  FaPlus,
+  FaSearch,
+  FaChevronDown,
+  FaChevronUp,
+  FaStore,
+} from "react-icons/fa";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -17,12 +25,14 @@ const MallChains = ({ userRole }) => {
   const [newMallChain, setNewMallChain] = useState({
     title: "",
     description: "",
-    redirectDirectory: "",
   });
   const [editingMallChain, setEditingMallChain] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedChain, setExpandedChain] = useState(null);
+  const [newLocation, setNewLocation] = useState("");
+  const [editingLocation, setEditingLocation] = useState(null);
 
   useEffect(() => {
     fetchMallChains();
@@ -32,10 +42,19 @@ const MallChains = ({ userRole }) => {
     setIsLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, "mallChains"));
-      const mallChainsData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const mallChainsData = await Promise.all(
+        querySnapshot.docs.map(async (doc) => {
+          const chainData = { id: doc.id, ...doc.data() };
+          const locationsSnapshot = await getDocs(
+            collection(db, `mallChains/${doc.id}/locations`)
+          );
+          chainData.locations = locationsSnapshot.docs.map((loc) => ({
+            id: loc.id,
+            name: loc.data().name,
+          }));
+          return chainData;
+        })
+      );
       setMallChains(mallChainsData);
     } catch (error) {
       console.error("Error fetching mall chains:", error);
@@ -62,19 +81,18 @@ const MallChains = ({ userRole }) => {
         await updateDoc(doc(db, "mallChains", editingMallChain.id), {
           title: editingMallChain.title,
           description: editingMallChain.description,
-          redirectDirectory: editingMallChain.redirectDirectory,
         });
         toast.success("Mall chain updated successfully");
       } else {
-        await addDoc(collection(db, "mallChains"), newMallChain);
+        const docRef = await addDoc(collection(db, "mallChains"), newMallChain);
+        // Add an initial empty location for the new mall chain
+        await addDoc(collection(db, `mallChains/${docRef.id}/locations`), {
+          name: "New Location",
+        });
         toast.success("Mall chain added successfully");
       }
       fetchMallChains();
-      setNewMallChain({
-        title: "",
-        description: "",
-        redirectDirectory: "",
-      });
+      setNewMallChain({ title: "", description: "" });
       setEditingMallChain(null);
       setIsModalOpen(false);
     } catch (error) {
@@ -106,13 +124,59 @@ const MallChains = ({ userRole }) => {
     }
   };
 
-  const filteredMallChains = mallChains.filter(
-    (mallChain) =>
-      mallChain.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mallChain.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mallChain.redirectDirectory
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase())
+  const handleAddLocation = async (chainId) => {
+    if (!newLocation.trim()) return;
+    setIsLoading(true);
+    try {
+      await addDoc(collection(db, `mallChains/${chainId}/locations`), {
+        name: newLocation,
+      });
+      toast.success("Location added successfully");
+      setNewLocation("");
+      fetchMallChains();
+    } catch (error) {
+      console.error("Error adding location:", error);
+      toast.error("Failed to add location");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditLocation = async (chainId, locationId, newName) => {
+    setIsLoading(true);
+    try {
+      await updateDoc(doc(db, `mallChains/${chainId}/locations`, locationId), {
+        name: newName,
+      });
+      toast.success("Location updated successfully");
+      setEditingLocation(null);
+      fetchMallChains();
+    } catch (error) {
+      console.error("Error updating location:", error);
+      toast.error("Failed to update location");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteLocation = async (chainId, locationId) => {
+    if (window.confirm("Are you sure you want to delete this location?")) {
+      setIsLoading(true);
+      try {
+        await deleteDoc(doc(db, `mallChains/${chainId}/locations`, locationId));
+        toast.success("Location deleted successfully");
+        fetchMallChains();
+      } catch (error) {
+        console.error("Error deleting location:", error);
+        toast.error("Failed to delete location");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const filteredMallChains = mallChains.filter((mallChain) =>
+    mallChain.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const renderForm = () => (
@@ -141,24 +205,7 @@ const MallChains = ({ userRole }) => {
           }
           onChange={handleInputChange}
           className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
-          required
           rows="3"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Redirect Directory
-        </label>
-        <input
-          type="text"
-          name="redirectDirectory"
-          value={
-            editingMallChain
-              ? editingMallChain.redirectDirectory
-              : newMallChain.redirectDirectory
-          }
-          onChange={handleInputChange}
-          className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
           required
         />
       </div>
@@ -166,13 +213,13 @@ const MallChains = ({ userRole }) => {
         <button
           type="button"
           onClick={() => setIsModalOpen(false)}
-          className="hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md"
+          className="hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-gray-100 rounded-md"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md"
+          className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 bg-indigo-600 rounded-md"
         >
           {editingMallChain ? "Update" : "Add"} Mall Chain
         </button>
@@ -181,54 +228,152 @@ const MallChains = ({ userRole }) => {
   );
 
   const renderMallChainsList = () => (
-    <div className="sm:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-6">
+    <div className="space-y-4">
       {filteredMallChains.map((mallChain) => (
-        <div
+        <motion.div
           key={mallChain.id}
-          className="flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-lg"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="overflow-hidden bg-white border border-gray-200 rounded-lg shadow-lg"
         >
-          <div className="flex-grow p-6">
-            <h3 className="mb-2 text-lg font-semibold text-gray-900">
-              {mallChain.title}
-            </h3>
-            <p className="mb-4 text-sm text-gray-600">
-              {mallChain.description}
-            </p>
-            <p className="text-sm text-gray-500">
-              <span className="font-medium">Redirect Directory:</span>{" "}
-              {mallChain.redirectDirectory}
-            </p>
-          </div>
-          <div className="bg-gray-50 px-6 py-4 mt-auto">
-            <div className="flex justify-end space-x-2">
+          <div className="sm:flex-row sm:items-center bg-gray-50 flex flex-col justify-between p-4">
+            <div className="sm:mb-0 mb-2">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {mallChain.title}
+              </h3>
+              <p className="text-sm text-gray-600">{mallChain.description}</p>
+            </div>
+            <div className="flex space-x-2">
               <button
                 onClick={() => handleEdit(mallChain)}
-                className="hover:text-indigo-900 text-indigo-600 transition-colors duration-200"
+                className="hover:text-indigo-900 p-2 text-indigo-600 transition-colors duration-200"
               >
                 <FaEdit className="w-5 h-5" />
               </button>
               <button
                 onClick={() => handleDelete(mallChain.id)}
-                className="hover:text-red-900 text-red-600 transition-colors duration-200"
+                className="hover:text-red-900 p-2 text-red-600 transition-colors duration-200"
               >
                 <FaTrash className="w-5 h-5" />
               </button>
+              <button
+                onClick={() =>
+                  setExpandedChain(
+                    expandedChain === mallChain.id ? null : mallChain.id
+                  )
+                }
+                className="hover:text-gray-900 p-2 text-gray-600 transition-colors duration-200"
+              >
+                {expandedChain === mallChain.id ? (
+                  <FaChevronUp className="w-5 h-5" />
+                ) : (
+                  <FaChevronDown className="w-5 h-5" />
+                )}
+              </button>
             </div>
           </div>
-        </div>
+          <AnimatePresence>
+            {expandedChain === mallChain.id && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="p-4 border-t"
+              >
+                <h4 className="text-md flex items-center mb-2 font-semibold">
+                  <FaStore className="mr-2" /> Locations:
+                </h4>
+                <ul className="mb-4 space-y-2">
+                  {mallChain.locations.map((location) => (
+                    <li
+                      key={location.id}
+                      className="sm:flex-row sm:items-center bg-gray-50 flex flex-col justify-between p-2 rounded"
+                    >
+                      {editingLocation === location.id ? (
+                        <input
+                          type="text"
+                          value={location.name}
+                          onChange={(e) => {
+                            const updatedLocations = mallChain.locations.map(
+                              (loc) =>
+                                loc.id === location.id
+                                  ? { ...loc, name: e.target.value }
+                                  : loc
+                            );
+                            setMallChains(
+                              mallChains.map((chain) =>
+                                chain.id === mallChain.id
+                                  ? { ...chain, locations: updatedLocations }
+                                  : chain
+                              )
+                            );
+                          }}
+                          onBlur={() =>
+                            handleEditLocation(
+                              mallChain.id,
+                              location.id,
+                              location.name
+                            )
+                          }
+                          className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
+                        />
+                      ) : (
+                        <>
+                          <span className="sm:mb-0 mb-2">{location.name}</span>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => setEditingLocation(location.id)}
+                              className="hover:text-indigo-900 p-1 text-indigo-600 transition-colors duration-200"
+                            >
+                              <FaEdit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteLocation(mallChain.id, location.id)
+                              }
+                              className="hover:text-red-900 p-1 text-red-600 transition-colors duration-200"
+                            >
+                              <FaTrash className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="sm:flex-row sm:space-y-0 sm:space-x-2 flex flex-col space-y-2">
+                  <input
+                    type="text"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    placeholder="Add new location"
+                    className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
+                  />
+                  <button
+                    onClick={() => handleAddLocation(mallChain.id)}
+                    className="hover:bg-green-600 px-4 py-2 font-bold text-white transition-colors duration-200 bg-green-500 rounded"
+                  >
+                    <FaPlus className="inline-block mr-2" /> Add
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
       ))}
     </div>
   );
 
   return (
-    <div className="container px-4 py-8 mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-3xl font-bold text-gray-900">
+    <div className="sm:px-6 lg:px-8 container px-4 py-8 mx-auto">
+      <div className="sm:flex-row sm:items-center flex flex-col justify-between mb-6">
+        <h2 className="sm:text-3xl sm:mb-0 mb-4 text-2xl font-bold text-gray-900">
           Mall Chains Management
         </h2>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md"
+          className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-colors duration-200 bg-indigo-600 rounded-md"
         >
           <FaPlus className="mr-2" />
           Add Mall Chain
