@@ -35,5 +35,15 @@ dist-ssr
 # Firebase rules
 firestore.rules
 
+# Firebase service account key
+mallez-dev-firebase-adminsdk-26cr2-dda26658c4.json
 
+# CORS configuration files
+cors.json
+update_cors.js
 
+# Other common entries you might want to include if not already present:
+node_modules/
+.env
+*.log
+.DS_Store
