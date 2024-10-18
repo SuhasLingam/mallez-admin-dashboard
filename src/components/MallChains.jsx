@@ -13,12 +13,11 @@ import {
   FaTrash,
   FaPlus,
   FaSearch,
-  FaChevronDown,
-  FaChevronUp,
-  FaStore,
+  FaMapMarkerAlt,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 
 const MallChains = ({ userRole }) => {
   const [mallChains, setMallChains] = useState([]);
@@ -30,9 +29,6 @@ const MallChains = ({ userRole }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [expandedChain, setExpandedChain] = useState(null);
-  const [newLocation, setNewLocation] = useState({ name: "", imageUrl: "" });
-  const [editingLocation, setEditingLocation] = useState(null);
 
   useEffect(() => {
     fetchMallChains();
@@ -42,20 +38,10 @@ const MallChains = ({ userRole }) => {
     setIsLoading(true);
     try {
       const querySnapshot = await getDocs(collection(db, "mallChains"));
-      const mallChainsData = await Promise.all(
-        querySnapshot.docs.map(async (doc) => {
-          const chainData = { id: doc.id, ...doc.data() };
-          const locationsSnapshot = await getDocs(
-            collection(db, `mallChains/${doc.id}/locations`)
-          );
-          chainData.locations = locationsSnapshot.docs.map((loc) => ({
-            id: loc.id,
-            name: loc.data().name,
-            imageUrl: loc.data().imageUrl,
-          }));
-          return chainData;
-        })
-      );
+      const mallChainsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setMallChains(mallChainsData);
     } catch (error) {
       console.error("Error fetching mall chains:", error);
@@ -85,12 +71,7 @@ const MallChains = ({ userRole }) => {
         });
         toast.success("Mall chain updated successfully");
       } else {
-        const docRef = await addDoc(collection(db, "mallChains"), newMallChain);
-        // Add an initial empty location for the new mall chain
-        await addDoc(collection(db, `mallChains/${docRef.id}/locations`), {
-          name: "New Location",
-          imageUrl: "",
-        });
+        await addDoc(collection(db, "mallChains"), newMallChain);
         toast.success("Mall chain added successfully");
       }
       fetchMallChains();
@@ -120,59 +101,6 @@ const MallChains = ({ userRole }) => {
       } catch (error) {
         console.error("Error deleting mall chain:", error);
         toast.error("Failed to delete mall chain");
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const handleAddLocation = async (chainId) => {
-    if (!newLocation.name.trim()) return;
-    setIsLoading(true);
-    try {
-      await addDoc(collection(db, `mallChains/${chainId}/locations`), {
-        name: newLocation.name,
-        imageUrl: newLocation.imageUrl,
-      });
-      toast.success("Location added successfully");
-      setNewLocation({ name: "", imageUrl: "" });
-      fetchMallChains();
-    } catch (error) {
-      console.error("Error adding location:", error);
-      toast.error("Failed to add location");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleEditLocation = async (chainId, locationId, updatedLocation) => {
-    setIsLoading(true);
-    try {
-      await updateDoc(doc(db, `mallChains/${chainId}/locations`, locationId), {
-        name: updatedLocation.name,
-        imageUrl: updatedLocation.imageUrl,
-      });
-      toast.success("Location updated successfully");
-      setEditingLocation(null);
-      fetchMallChains();
-    } catch (error) {
-      console.error("Error updating location:", error);
-      toast.error("Failed to update location");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteLocation = async (chainId, locationId) => {
-    if (window.confirm("Are you sure you want to delete this location?")) {
-      setIsLoading(true);
-      try {
-        await deleteDoc(doc(db, `mallChains/${chainId}/locations`, locationId));
-        toast.success("Location deleted successfully");
-        fetchMallChains();
-      } catch (error) {
-        console.error("Error deleting location:", error);
-        toast.error("Failed to delete location");
       } finally {
         setIsLoading(false);
       }
@@ -249,6 +177,13 @@ const MallChains = ({ userRole }) => {
               <p className="text-sm text-gray-600">{mallChain.description}</p>
             </div>
             <div className="flex space-x-2">
+              <Link
+                to={`/mall/${mallChain.id}/locations`}
+                className="hover:bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 bg-blue-500 rounded"
+              >
+                <FaMapMarkerAlt className="inline-block mr-2" />
+                View Locations
+              </Link>
               <button
                 onClick={() => handleEdit(mallChain)}
                 className="hover:text-indigo-900 p-2 text-indigo-600 transition-colors duration-200"
@@ -261,170 +196,8 @@ const MallChains = ({ userRole }) => {
               >
                 <FaTrash className="w-5 h-5" />
               </button>
-              <button
-                onClick={() =>
-                  setExpandedChain(
-                    expandedChain === mallChain.id ? null : mallChain.id
-                  )
-                }
-                className="hover:text-gray-900 p-2 text-gray-600 transition-colors duration-200"
-              >
-                {expandedChain === mallChain.id ? (
-                  <FaChevronUp className="w-5 h-5" />
-                ) : (
-                  <FaChevronDown className="w-5 h-5" />
-                )}
-              </button>
             </div>
           </div>
-          <AnimatePresence>
-            {expandedChain === mallChain.id && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="p-4 border-t"
-              >
-                <h4 className="text-md flex items-center mb-2 font-semibold">
-                  <FaStore className="mr-2" /> Locations:
-                </h4>
-                <ul className="mb-4 space-y-2">
-                  {mallChain.locations.map((location) => (
-                    <li
-                      key={location.id}
-                      className="sm:flex-row sm:items-center bg-gray-50 flex flex-col justify-between p-2 rounded"
-                    >
-                      {editingLocation === location.id ? (
-                        <div className="w-full space-y-2">
-                          <input
-                            type="text"
-                            value={location.name}
-                            onChange={(e) => {
-                              const updatedLocations = mallChain.locations.map(
-                                (loc) =>
-                                  loc.id === location.id
-                                    ? { ...loc, name: e.target.value }
-                                    : loc
-                              );
-                              setMallChains(
-                                mallChains.map((chain) =>
-                                  chain.id === mallChain.id
-                                    ? { ...chain, locations: updatedLocations }
-                                    : chain
-                                )
-                              );
-                            }}
-                            className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
-                            placeholder="Location name"
-                          />
-                          <input
-                            type="text"
-                            value={location.imageUrl}
-                            onChange={(e) => {
-                              const updatedLocations = mallChain.locations.map(
-                                (loc) =>
-                                  loc.id === location.id
-                                    ? { ...loc, imageUrl: e.target.value }
-                                    : loc
-                              );
-                              setMallChains(
-                                mallChains.map((chain) =>
-                                  chain.id === mallChain.id
-                                    ? { ...chain, locations: updatedLocations }
-                                    : chain
-                                )
-                              );
-                            }}
-                            className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
-                            placeholder="Image URL"
-                          />
-                          <div className="flex justify-end space-x-2">
-                            <button
-                              onClick={() =>
-                                handleEditLocation(mallChain.id, location.id, {
-                                  name: location.name,
-                                  imageUrl: location.imageUrl,
-                                })
-                              }
-                              className="hover:bg-green-600 px-2 py-1 text-sm font-medium text-white transition-colors duration-200 bg-green-500 rounded"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingLocation(null)}
-                              className="hover:bg-gray-300 px-2 py-1 text-sm font-medium text-gray-700 transition-colors duration-200 bg-gray-200 rounded"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="sm:mb-0 mb-2">
-                            <span className="font-semibold">
-                              {location.name}
-                            </span>
-                            {location.imageUrl && (
-                              <img
-                                src={location.imageUrl}
-                                alt={location.name}
-                                className="object-cover w-16 h-16 mt-1 rounded"
-                              />
-                            )}
-                          </div>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => setEditingLocation(location.id)}
-                              className="hover:text-indigo-900 p-1 text-indigo-600 transition-colors duration-200"
-                            >
-                              <FaEdit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleDeleteLocation(mallChain.id, location.id)
-                              }
-                              className="hover:text-red-900 p-1 text-red-600 transition-colors duration-200"
-                            >
-                              <FaTrash className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <div className="sm:flex-row sm:space-y-0 sm:space-x-2 flex flex-col space-y-2">
-                  <input
-                    type="text"
-                    value={newLocation.name}
-                    onChange={(e) =>
-                      setNewLocation({ ...newLocation, name: e.target.value })
-                    }
-                    placeholder="Add new location name"
-                    className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
-                  />
-                  <input
-                    type="text"
-                    value={newLocation.imageUrl}
-                    onChange={(e) =>
-                      setNewLocation({
-                        ...newLocation,
-                        imageUrl: e.target.value,
-                      })
-                    }
-                    placeholder="Add location image URL"
-                    className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
-                  />
-                  <button
-                    onClick={() => handleAddLocation(mallChain.id)}
-                    className="hover:bg-green-600 px-4 py-2 font-bold text-white transition-colors duration-200 bg-green-500 rounded"
-                  >
-                    <FaPlus className="inline-block mr-2" /> Add
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </motion.div>
       ))}
     </div>
