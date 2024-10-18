@@ -28,7 +28,7 @@ import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
 import Login from "./components/auth/Login";
 import Profile from "./components/users/Profile";
-import { firebaseConfig } from "./config/firebaseConfig";
+import { firebaseConfig } from "./services/firebaseService";
 import LoadingSpinner from "./components/common/LoadingSpinner";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   collection,
@@ -8,14 +8,17 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  setDoc,
 } from "firebase/firestore";
-import { db } from "../../services/firebaseService";
+import { db, storage, auth } from "../../services/firebaseService";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   FaEdit,
   FaTrash,
   FaPlus,
   FaStore,
   FaChevronRight,
+  FaUpload,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -25,58 +28,24 @@ const MallLocations = () => {
   const [locations, setLocations] = useState([]);
   const [newLocation, setNewLocation] = useState({ name: "", imageUrl: "" });
   const [isLoading, setIsLoading] = useState(true);
+  const [imageFile, setImageFile] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    let isMounted = true;
-    const fetchMallChainAndLocations = async () => {
-      setIsLoading(true);
-      try {
-        const mallChainDoc = await getDoc(doc(db, "mallChains", mallChainId));
-        if (!isMounted) return;
-
-        if (mallChainDoc.exists()) {
-          setMallChain({ id: mallChainDoc.id, ...mallChainDoc.data() });
-        } else {
-          toast.error("Mall chain not found");
-          return;
-        }
-
-        const locationsSnapshot = await getDocs(
-          collection(db, `mallChains/${mallChainId}/locations`)
-        );
-        if (!isMounted) return;
-
-        setLocations(
-          locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
-      } catch (error) {
-        console.error("Error fetching mall chain and locations:", error);
-        if (isMounted) {
-          toast.error("Failed to fetch mall chain and locations");
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
     fetchMallChainAndLocations();
-
-    return () => {
-      isMounted = false;
-    };
   }, [mallChainId]);
 
-  const handleAddLocation = async () => {
+  const fetchMallChainAndLocations = async () => {
+    setIsLoading(true);
     try {
-      await addDoc(
-        collection(db, `mallChains/${mallChainId}/locations`),
-        newLocation
-      );
-      toast.success("Location added successfully");
-      setNewLocation({ name: "", imageUrl: "" });
-      // Fetch updated locations
+      const mallChainDoc = await getDoc(doc(db, "mallChains", mallChainId));
+      if (mallChainDoc.exists()) {
+        setMallChain({ id: mallChainDoc.id, ...mallChainDoc.data() });
+      } else {
+        toast.error("Mall chain not found");
+        return;
+      }
+
       const locationsSnapshot = await getDocs(
         collection(db, `mallChains/${mallChainId}/locations`)
       );
@@ -84,8 +53,97 @@ const MallLocations = () => {
         locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       );
     } catch (error) {
+      console.error("Error fetching mall chain and locations:", error);
+      toast.error("Failed to fetch mall chain and locations");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log("Locations updated:", locations);
+  }, [locations]);
+
+  const handleImageChange = (e) => {
+    if (e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!auth.currentUser) {
+      toast.error("You must be logged in to upload images");
+      return null;
+    }
+
+    if (imageFile) {
+      const storageRef = ref(
+        storage,
+        `mall_images/${Date.now()}_${imageFile.name}`
+      );
+      try {
+        await uploadBytes(storageRef, imageFile);
+        const downloadURL = await getDownloadURL(storageRef);
+        return downloadURL;
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        toast.error("Failed to upload image: " + error.message);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const handleAddLocation = async () => {
+    if (!auth.currentUser) {
+      toast.error("You must be logged in to add a location");
+      return;
+    }
+
+    try {
+      let imageUrl = newLocation.imageUrl;
+      if (imageFile) {
+        imageUrl = await handleImageUpload();
+        if (!imageUrl) return;
+      }
+
+      const locationData = {
+        name: newLocation.name,
+        imageUrl: imageUrl,
+      };
+
+      const docRef = await addDoc(
+        collection(db, `mallChains/${mallChainId}/locations`),
+        locationData
+      );
+
+      // Create empty MallOffers and floorLayout collections for the new location
+      await setDoc(
+        doc(
+          db,
+          `mallChains/${mallChainId}/locations/${docRef.id}/MallOffers/placeholder`
+        ),
+        {}
+      );
+      await setDoc(
+        doc(
+          db,
+          `mallChains/${mallChainId}/locations/${docRef.id}/floorLayout/placeholder`
+        ),
+        {}
+      );
+
+      toast.success("Location added successfully");
+      setNewLocation({ name: "", imageUrl: "" });
+      setImageFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      fetchMallChainAndLocations();
+    } catch (error) {
       console.error("Error adding location:", error);
-      toast.error("Failed to add location");
+      toast.error("Failed to add location: " + error.message);
     }
   };
 
@@ -150,7 +208,7 @@ const MallLocations = () => {
       </h1>
       <div className="mb-6">
         <h2 className="mb-2 text-xl font-semibold">Add New Location</h2>
-        <div className="flex space-x-2">
+        <div className="flex flex-col space-y-2">
           <input
             type="text"
             value={newLocation.name}
@@ -158,7 +216,7 @@ const MallLocations = () => {
               setNewLocation({ ...newLocation, name: e.target.value })
             }
             placeholder="Location name"
-            className="flex-grow p-2 border rounded"
+            className="p-2 border rounded"
           />
           <input
             type="text"
@@ -167,8 +225,26 @@ const MallLocations = () => {
               setNewLocation({ ...newLocation, imageUrl: e.target.value })
             }
             placeholder="Image URL"
-            className="flex-grow p-2 border rounded"
+            className="p-2 border rounded"
           />
+          <div className="flex items-center space-x-2">
+            <input
+              type="file"
+              onChange={handleImageChange}
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+            />
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="hover:bg-blue-600 px-4 py-2 text-white bg-blue-500 rounded"
+            >
+              <FaUpload className="inline-block mr-2" /> Choose Image
+            </button>
+            {imageFile && (
+              <span className="text-sm text-gray-600">{imageFile.name}</span>
+            )}
+          </div>
           <button
             onClick={handleAddLocation}
             className="hover:bg-green-600 p-2 text-white bg-green-500 rounded"
@@ -186,6 +262,10 @@ const MallLocations = () => {
                 src={location.imageUrl}
                 alt={location.name}
                 className="object-cover w-full h-40 mb-2 rounded"
+                onError={(e) => {
+                  console.error("Image failed to load:", e);
+                  e.target.src = "path/to/fallback/image.jpg"; // Replace with a fallback image
+                }}
               />
             )}
             <div className="flex items-center justify-between mt-4">
