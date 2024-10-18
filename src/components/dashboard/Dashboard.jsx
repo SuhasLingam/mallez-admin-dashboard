@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../config/firebaseConfig";
+import { db } from "../../services/firebaseService";
 import { FaUsers, FaUserTie, FaUserShield, FaSearch } from "react-icons/fa";
 
 const Dashboard = ({ userRole }) => {

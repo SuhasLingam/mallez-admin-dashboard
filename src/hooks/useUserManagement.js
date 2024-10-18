@@ -11,12 +11,8 @@ const useUserManagement = (
   updateUser,
   deleteUser
 ) => {
-  const [users, setUsers] = useState([]);
   const [displayUsers, setDisplayUsers] = useState([]);
   const [newUser, setNewUser] = useState({
-    email: "",
-    firstName: "",
-    lastName: "",
     role: "user",
     vehicleNumbers: [""],
   });
@@ -24,31 +20,17 @@ const useUserManagement = (
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [usersPerPage] = useState(10);
+  const [usersPerPage] = useState(10); // Set to 10 users per page
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
-  const [sortBy, setSortBy] = useState("email");
+  const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
 
   useEffect(() => {
-    let allUsers = [];
-    if (userRole === "admin") {
-      allUsers = [...adminData, ...mallOwnerData, ...userData];
-    } else if (userRole === "mallOwner") {
-      allUsers = userData;
-    } else if (userRole === "user") {
-      allUsers = userData.filter((user) => user.email === currentUserEmail);
-    }
-    setUsers(allUsers);
+    const allUsers = [...adminData, ...mallOwnerData, ...userData];
     setDisplayUsers(allUsers);
-  }, [adminData, mallOwnerData, userData, userRole, currentUserEmail]);
-
-  const validateVehicleNumber = (number) => {
-    const pattern = /\b[A-Z]{2}[-.\s]?\d{2}[-.\s]?[A-Z]{1,2}[-.\s]?\d{4}\b/;
-    return pattern.test(number);
-  };
+  }, [adminData, mallOwnerData, userData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -60,11 +42,10 @@ const useUserManagement = (
   };
 
   const handleVehicleNumberChange = (index, value) => {
-    const upperCaseValue = value.toUpperCase();
-    const updatedVehicleNumbers = editingUser
-      ? [...editingUser.vehicleNumbers]
-      : [...newUser.vehicleNumbers];
-    updatedVehicleNumbers[index] = upperCaseValue;
+    const updatedVehicleNumbers = [
+      ...(editingUser ? editingUser.vehicleNumbers : newUser.vehicleNumbers),
+    ];
+    updatedVehicleNumbers[index] = value;
     if (editingUser) {
       setEditingUser({ ...editingUser, vehicleNumbers: updatedVehicleNumbers });
     } else {
@@ -104,22 +85,9 @@ const useUserManagement = (
     e.preventDefault();
     setIsLoading(true);
     try {
-      const userData = editingUser || newUser;
-
-      const invalidVehicleNumbers = userData.vehicleNumbers.filter(
-        (vn) => vn && !validateVehicleNumber(vn)
-      );
-      if (invalidVehicleNumbers.length > 0) {
-        toast.error(
-          "Invalid vehicle number format. Please check and try again."
-        );
-        setIsLoading(false);
-        return;
-      }
-
       if (editingUser) {
         await updateUser(editingUser.id, editingUser.role, editingUser);
-        setEditingUser(null);
+        toast.success("User updated successfully");
       } else {
         await addNewUser(
           newUser.email,
@@ -128,22 +96,14 @@ const useUserManagement = (
           newUser.lastName,
           newUser.vehicleNumbers
         );
-        setNewUser({
-          email: "",
-          firstName: "",
-          lastName: "",
-          role: "user",
-          vehicleNumbers: [""],
-        });
+        toast.success("New user added successfully");
       }
-      toast.success(
-        editingUser
-          ? "User updated successfully"
-          : "New user added successfully"
-      );
       setIsModalOpen(false);
+      setEditingUser(null);
+      setNewUser({ role: "user", vehicleNumbers: [""] });
     } catch (error) {
-      toast.error("Failed to update user: " + error.message);
+      console.error("Error saving user:", error);
+      toast.error("Failed to save user");
     } finally {
       setIsLoading(false);
     }
@@ -154,28 +114,32 @@ const useUserManagement = (
     setIsModalOpen(true);
   };
 
-  const closeModal = () => {
-    setEditingUser(null);
-    setIsModalOpen(false);
-  };
-
-  const handleDelete = async (id, role) => {
-    setUserToDelete({ id, role });
+  const handleDelete = (user) => {
+    setEditingUser(user);
     setIsDeleteModalOpen(true);
   };
 
   const confirmDelete = async () => {
-    setIsLoading(true);
-    try {
-      await deleteUser(userToDelete.id, userToDelete.role);
-      toast.success("User deleted successfully");
-    } catch (error) {
-      toast.error("Failed to delete user: " + error.message);
-    } finally {
-      setIsLoading(false);
-      setIsDeleteModalOpen(false);
-      setUserToDelete(null);
+    if (editingUser) {
+      setIsLoading(true);
+      try {
+        await deleteUser(editingUser.id, editingUser.role);
+        toast.success("User deleted successfully");
+        setIsDeleteModalOpen(false);
+        setEditingUser(null);
+      } catch (error) {
+        console.error("Error deleting user:", error);
+        toast.error("Failed to delete user");
+      } finally {
+        setIsLoading(false);
+      }
     }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+    setNewUser({ role: "user", vehicleNumbers: [""] });
   };
 
   const handleSearchAndFilter = (
@@ -188,48 +152,16 @@ const useUserManagement = (
     setFilterRole(newFilterRole);
     setSortBy(newSortBy);
     setSortOrder(newSortOrder);
-
-    let filteredUsers = users.filter((user) => {
-      const searchString = newSearchTerm.toLowerCase();
-      return (
-        user.email.toLowerCase().includes(searchString) ||
-        (user.firstName &&
-          user.firstName.toLowerCase().includes(searchString)) ||
-        (user.lastName && user.lastName.toLowerCase().includes(searchString)) ||
-        (user.vehicleNumbers &&
-          user.vehicleNumbers.some((vn) =>
-            vn.toLowerCase().includes(searchString)
-          ))
-      );
-    });
-
-    if (newFilterRole !== "all") {
-      filteredUsers = filteredUsers.filter(
-        (user) => user.role === newFilterRole
-      );
-    }
-
-    filteredUsers.sort((a, b) => {
-      const aValue = (a[newSortBy] || "").toLowerCase();
-      const bValue = (b[newSortBy] || "").toLowerCase();
-      return newSortOrder === "asc"
-        ? aValue.localeCompare(bValue)
-        : bValue.localeCompare(aValue);
-    });
-
-    setDisplayUsers(filteredUsers);
     setCurrentPage(1);
   };
 
   return {
-    users,
     displayUsers,
     newUser,
     editingUser,
     isModalOpen,
     isLoading,
     isDeleteModalOpen,
-    userToDelete,
     currentPage,
     usersPerPage,
     searchTerm,

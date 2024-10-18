@@ -9,7 +9,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { db } from "../config/firebaseConfig";
+import { db } from "../../services/firebaseService";
 import { FaEdit, FaTrash, FaPlus, FaStore } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -21,33 +21,46 @@ const MallLocations = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchMallChainAndLocations();
-  }, [mallChainId]);
+    let isMounted = true;
+    const fetchMallChainAndLocations = async () => {
+      setIsLoading(true);
+      try {
+        const mallChainDoc = await getDoc(doc(db, "mallChains", mallChainId));
+        if (!isMounted) return;
 
-  const fetchMallChainAndLocations = async () => {
-    setIsLoading(true);
-    try {
-      const mallChainDoc = await getDoc(doc(db, "mallChains", mallChainId));
-      if (mallChainDoc.exists()) {
-        setMallChain({ id: mallChainDoc.id, ...mallChainDoc.data() });
-      } else {
-        toast.error("Mall chain not found");
-        return;
+        if (mallChainDoc.exists()) {
+          setMallChain({ id: mallChainDoc.id, ...mallChainDoc.data() });
+        } else {
+          toast.error("Mall chain not found");
+          return;
+        }
+
+        const locationsSnapshot = await getDocs(
+          collection(db, `mallChains/${mallChainId}/locations`)
+        );
+        if (!isMounted) return;
+
+        setLocations(
+          locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+      } catch (error) {
+        console.error("Error fetching mall chain and locations:", error);
+        if (isMounted) {
+          toast.error("Failed to fetch mall chain and locations");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
+    };
 
-      const locationsSnapshot = await getDocs(
-        collection(db, `mallChains/${mallChainId}/locations`)
-      );
-      setLocations(
-        locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
-    } catch (error) {
-      console.error("Error fetching mall chain and locations:", error);
-      toast.error("Failed to fetch mall chain and locations");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    fetchMallChainAndLocations();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mallChainId]);
 
   const handleAddLocation = async () => {
     try {
@@ -57,7 +70,13 @@ const MallLocations = () => {
       );
       toast.success("Location added successfully");
       setNewLocation({ name: "", imageUrl: "" });
-      fetchMallChainAndLocations();
+      // Fetch updated locations
+      const locationsSnapshot = await getDocs(
+        collection(db, `mallChains/${mallChainId}/locations`)
+      );
+      setLocations(
+        locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
     } catch (error) {
       console.error("Error adding location:", error);
       toast.error("Failed to add location");
@@ -71,7 +90,12 @@ const MallLocations = () => {
         updatedLocation
       );
       toast.success("Location updated successfully");
-      fetchMallChainAndLocations();
+      // Update the location in the state
+      setLocations(
+        locations.map((loc) =>
+          loc.id === id ? { ...loc, ...updatedLocation } : loc
+        )
+      );
     } catch (error) {
       console.error("Error updating location:", error);
       toast.error("Failed to update location");
@@ -83,7 +107,8 @@ const MallLocations = () => {
       try {
         await deleteDoc(doc(db, `mallChains/${mallChainId}/locations`, id));
         toast.success("Location deleted successfully");
-        fetchMallChainAndLocations();
+        // Remove the deleted location from the state
+        setLocations(locations.filter((loc) => loc.id !== id));
       } catch (error) {
         console.error("Error deleting location:", error);
         toast.error("Failed to delete location");
@@ -92,16 +117,16 @@ const MallLocations = () => {
   };
 
   if (isLoading) {
-    return <div className="text-center mt-8">Loading...</div>;
+    return <div className="mt-8 text-center">Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">
+    <div className="container px-4 py-8 mx-auto">
+      <h1 className="mb-6 text-3xl font-bold">
         {mallChain?.title} - Locations
       </h1>
       <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-2">Add New Location</h2>
+        <h2 className="mb-2 text-xl font-semibold">Add New Location</h2>
         <div className="flex space-x-2">
           <input
             type="text"
@@ -123,27 +148,27 @@ const MallLocations = () => {
           />
           <button
             onClick={handleAddLocation}
-            className="bg-green-500 text-white p-2 rounded hover:bg-green-600"
+            className="hover:bg-green-600 p-2 text-white bg-green-500 rounded"
           >
             <FaPlus className="inline-block mr-2" /> Add Location
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="md:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-4">
         {locations.map((location) => (
-          <div key={location.id} className="bg-white shadow-md rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-2">{location.name}</h3>
+          <div key={location.id} className="p-4 bg-white rounded-lg shadow-md">
+            <h3 className="mb-2 text-lg font-semibold">{location.name}</h3>
             {location.imageUrl && (
               <img
                 src={location.imageUrl}
                 alt={location.name}
-                className="w-full h-40 object-cover rounded mb-2"
+                className="object-cover w-full h-40 mb-2 rounded"
               />
             )}
-            <div className="flex justify-between items-center mt-4">
+            <div className="flex items-center justify-between mt-4">
               <Link
                 to={`/mall/${mallChainId}/location/${location.id}`}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                className="hover:bg-blue-600 px-4 py-2 text-white bg-blue-500 rounded"
               >
                 View Details
               </Link>
@@ -155,13 +180,13 @@ const MallLocations = () => {
                       name: prompt("Enter new name", location.name),
                     })
                   }
-                  className="text-blue-500 hover:text-blue-700 mr-2"
+                  className="hover:text-blue-700 mr-2 text-blue-500"
                 >
                   <FaEdit className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => handleDeleteLocation(location.id)}
-                  className="text-red-500 hover:text-red-700"
+                  className="hover:text-red-700 text-red-500"
                 >
                   <FaTrash className="w-5 h-5" />
                 </button>

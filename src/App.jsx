@@ -22,27 +22,26 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { Route, Routes, useNavigate } from "react-router-dom";
-import Dashboard from "./components/Dashboard";
-import Users from "./components/Users";
-import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
-import Login from "./components/Login";
-import Profile from "./components/Profile";
+import Dashboard from "./components/dashboard/Dashboard";
+import Users from "./components/users/Users";
+import Sidebar from "./components/common/Sidebar";
+import Header from "./components/common/Header";
+import Login from "./components/auth/Login";
+import Profile from "./components/users/Profile";
 import { firebaseConfig } from "./config/firebaseConfig";
-import LoadingSpinner from "./components/LoadingSpinner";
+import LoadingSpinner from "./components/common/LoadingSpinner";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import UnauthorizedModal from "./components/UnauthorizedModal";
-import ToastManager from "./components/ToastManager";
-import MallChains from "./components/MallChains";
-import MallDetails from "./components/MallDetails";
-import MallLocations from "./components/MallLocations";
-import LocationDetails from "./components/LocationDetails";
+import UnauthorizedModal from "./components/common/UnauthorizedModal";
+import ToastManager from "./utils/ToastManager";
+import MallChains from "./components/mallManagement/MallChains";
+import MallDetails from "./components/mallManagement/MallDetails";
+import MallLocations from "./components/mallManagement/MallLocations";
+import LocationDetails from "./components/mallManagement/LocationDetails";
+import { db, auth } from "./services/firebaseService";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
 function App() {

@@ -2,10 +2,10 @@ import React from "react";
 import { FaUserPlus } from "react-icons/fa";
 import UserTable from "./UserTable";
 import UserForm from "./UserForm";
-import SearchAndFilter from "./SearchAndFilter";
-import Pagination from "./Pagination";
-import ConfirmationModal from "./ConfirmationModal";
-import useUserManagement from "../hooks/useUserManagement";
+import SearchAndFilter from "../common/SearchAndFilter";
+import Pagination from "../common/Pagination";
+import ConfirmationModal from "../common/ConfirmationModal";
+import useUserManagement from "../../hooks/useUserManagement";
 
 const Users = ({
   adminData,

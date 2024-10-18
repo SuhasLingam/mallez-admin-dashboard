@@ -9,7 +9,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { db } from "../config/firebaseConfig";
+import { db } from "../../config/firebaseConfig";
 import { FaEdit, FaTrash, FaPlus, FaMapMarkerAlt } from "react-icons/fa";
 import { toast } from "react-toastify";
 
