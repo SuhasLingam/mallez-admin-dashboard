@@ -31,7 +31,7 @@ const MallChains = ({ userRole }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedChain, setExpandedChain] = useState(null);
-  const [newLocation, setNewLocation] = useState("");
+  const [newLocation, setNewLocation] = useState({ name: "", imageUrl: "" });
   const [editingLocation, setEditingLocation] = useState(null);
 
   useEffect(() => {
@@ -51,6 +51,7 @@ const MallChains = ({ userRole }) => {
           chainData.locations = locationsSnapshot.docs.map((loc) => ({
             id: loc.id,
             name: loc.data().name,
+            imageUrl: loc.data().imageUrl,
           }));
           return chainData;
         })
@@ -88,6 +89,7 @@ const MallChains = ({ userRole }) => {
         // Add an initial empty location for the new mall chain
         await addDoc(collection(db, `mallChains/${docRef.id}/locations`), {
           name: "New Location",
+          imageUrl: "",
         });
         toast.success("Mall chain added successfully");
       }
@@ -125,14 +127,15 @@ const MallChains = ({ userRole }) => {
   };
 
   const handleAddLocation = async (chainId) => {
-    if (!newLocation.trim()) return;
+    if (!newLocation.name.trim()) return;
     setIsLoading(true);
     try {
       await addDoc(collection(db, `mallChains/${chainId}/locations`), {
-        name: newLocation,
+        name: newLocation.name,
+        imageUrl: newLocation.imageUrl,
       });
       toast.success("Location added successfully");
-      setNewLocation("");
+      setNewLocation({ name: "", imageUrl: "" });
       fetchMallChains();
     } catch (error) {
       console.error("Error adding location:", error);
@@ -142,11 +145,12 @@ const MallChains = ({ userRole }) => {
     }
   };
 
-  const handleEditLocation = async (chainId, locationId, newName) => {
+  const handleEditLocation = async (chainId, locationId, updatedLocation) => {
     setIsLoading(true);
     try {
       await updateDoc(doc(db, `mallChains/${chainId}/locations`, locationId), {
-        name: newName,
+        name: updatedLocation.name,
+        imageUrl: updatedLocation.imageUrl,
       });
       toast.success("Location updated successfully");
       setEditingLocation(null);
@@ -291,36 +295,83 @@ const MallChains = ({ userRole }) => {
                       className="sm:flex-row sm:items-center bg-gray-50 flex flex-col justify-between p-2 rounded"
                     >
                       {editingLocation === location.id ? (
-                        <input
-                          type="text"
-                          value={location.name}
-                          onChange={(e) => {
-                            const updatedLocations = mallChain.locations.map(
-                              (loc) =>
-                                loc.id === location.id
-                                  ? { ...loc, name: e.target.value }
-                                  : loc
-                            );
-                            setMallChains(
-                              mallChains.map((chain) =>
-                                chain.id === mallChain.id
-                                  ? { ...chain, locations: updatedLocations }
-                                  : chain
-                              )
-                            );
-                          }}
-                          onBlur={() =>
-                            handleEditLocation(
-                              mallChain.id,
-                              location.id,
-                              location.name
-                            )
-                          }
-                          className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
-                        />
+                        <div className="w-full space-y-2">
+                          <input
+                            type="text"
+                            value={location.name}
+                            onChange={(e) => {
+                              const updatedLocations = mallChain.locations.map(
+                                (loc) =>
+                                  loc.id === location.id
+                                    ? { ...loc, name: e.target.value }
+                                    : loc
+                              );
+                              setMallChains(
+                                mallChains.map((chain) =>
+                                  chain.id === mallChain.id
+                                    ? { ...chain, locations: updatedLocations }
+                                    : chain
+                                )
+                              );
+                            }}
+                            className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
+                            placeholder="Location name"
+                          />
+                          <input
+                            type="text"
+                            value={location.imageUrl}
+                            onChange={(e) => {
+                              const updatedLocations = mallChain.locations.map(
+                                (loc) =>
+                                  loc.id === location.id
+                                    ? { ...loc, imageUrl: e.target.value }
+                                    : loc
+                              );
+                              setMallChains(
+                                mallChains.map((chain) =>
+                                  chain.id === mallChain.id
+                                    ? { ...chain, locations: updatedLocations }
+                                    : chain
+                                )
+                              );
+                            }}
+                            className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
+                            placeholder="Image URL"
+                          />
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              onClick={() =>
+                                handleEditLocation(mallChain.id, location.id, {
+                                  name: location.name,
+                                  imageUrl: location.imageUrl,
+                                })
+                              }
+                              className="hover:bg-green-600 px-2 py-1 text-sm font-medium text-white transition-colors duration-200 bg-green-500 rounded"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingLocation(null)}
+                              className="hover:bg-gray-300 px-2 py-1 text-sm font-medium text-gray-700 transition-colors duration-200 bg-gray-200 rounded"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <>
-                          <span className="sm:mb-0 mb-2">{location.name}</span>
+                          <div className="sm:mb-0 mb-2">
+                            <span className="font-semibold">
+                              {location.name}
+                            </span>
+                            {location.imageUrl && (
+                              <img
+                                src={location.imageUrl}
+                                alt={location.name}
+                                className="object-cover w-16 h-16 mt-1 rounded"
+                              />
+                            )}
+                          </div>
                           <div className="flex space-x-2">
                             <button
                               onClick={() => setEditingLocation(location.id)}
@@ -345,9 +396,23 @@ const MallChains = ({ userRole }) => {
                 <div className="sm:flex-row sm:space-y-0 sm:space-x-2 flex flex-col space-y-2">
                   <input
                     type="text"
-                    value={newLocation}
-                    onChange={(e) => setNewLocation(e.target.value)}
-                    placeholder="Add new location"
+                    value={newLocation.name}
+                    onChange={(e) =>
+                      setNewLocation({ ...newLocation, name: e.target.value })
+                    }
+                    placeholder="Add new location name"
+                    className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
+                  />
+                  <input
+                    type="text"
+                    value={newLocation.imageUrl}
+                    onChange={(e) =>
+                      setNewLocation({
+                        ...newLocation,
+                        imageUrl: e.target.value,
+                      })
+                    }
+                    placeholder="Add location image URL"
                     className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
                   />
                   <button
