@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
   collection,
   getDocs,
@@ -9,12 +9,13 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { db } from "../../config/firebaseConfig";
-import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
+import { db } from "../../services/firebaseService";
+import { FaEdit, FaTrash, FaPlus, FaChevronRight } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 const LocationDetails = () => {
   const { mallChainId, locationId } = useParams();
+  const [mallChain, setMallChain] = useState(null);
   const [location, setLocation] = useState(null);
   const [floorLayouts, setFloorLayouts] = useState([]);
   const [mallOffers, setMallOffers] = useState([]);
@@ -30,6 +31,14 @@ const LocationDetails = () => {
   const fetchLocationDetails = async () => {
     setIsLoading(true);
     try {
+      const mallChainDoc = await getDoc(doc(db, "mallChains", mallChainId));
+      if (mallChainDoc.exists()) {
+        setMallChain({ id: mallChainDoc.id, ...mallChainDoc.data() });
+      } else {
+        toast.error("Mall chain not found");
+        return;
+      }
+
       const locationDoc = await getDoc(
         doc(db, `mallChains/${mallChainId}/locations`, locationId)
       );
@@ -147,12 +156,38 @@ const LocationDetails = () => {
     }
   };
 
+  const Breadcrumb = () => (
+    <nav className="flex mb-4" aria-label="Breadcrumb">
+      <ol className="inline-flex items-center space-x-1 md:space-x-3">
+        <li className="inline-flex items-center">
+          <Link to="/mall-chains" className="text-gray-700 hover:text-blue-600">
+            Mall Chains
+          </Link>
+        </li>
+        <FaChevronRight className="text-gray-500 mx-2" />
+        <li className="inline-flex items-center">
+          <Link
+            to={`/mall/${mallChainId}/locations`}
+            className="text-gray-700 hover:text-blue-600"
+          >
+            {mallChain?.title}
+          </Link>
+        </li>
+        <FaChevronRight className="text-gray-500 mx-2" />
+        <li className="inline-flex items-center">
+          <span className="text-gray-500">{location?.name}</span>
+        </li>
+      </ol>
+    </nav>
+  );
+
   if (isLoading) {
     return <div className="mt-8 text-center">Loading...</div>;
   }
 
   return (
     <div className="container px-4 py-8 mx-auto">
+      <Breadcrumb />
       <h1 className="mb-6 text-3xl font-bold">{location?.name} Details</h1>
 
       {/* Floor Layouts Section */}

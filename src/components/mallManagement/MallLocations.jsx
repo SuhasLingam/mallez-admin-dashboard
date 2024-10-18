@@ -10,7 +10,13 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebaseService";
-import { FaEdit, FaTrash, FaPlus, FaStore } from "react-icons/fa";
+import {
+  FaEdit,
+  FaTrash,
+  FaPlus,
+  FaStore,
+  FaChevronRight,
+} from "react-icons/fa";
 import { toast } from "react-toastify";
 
 const MallLocations = () => {
@@ -116,12 +122,29 @@ const MallLocations = () => {
     }
   };
 
+  const Breadcrumb = () => (
+    <nav className="flex mb-4" aria-label="Breadcrumb">
+      <ol className="md:space-x-3 inline-flex items-center space-x-1">
+        <li className="inline-flex items-center">
+          <Link to="/mall-chains" className="hover:text-blue-600 text-gray-700">
+            Mall Chains
+          </Link>
+        </li>
+        <FaChevronRight className="mx-2 text-gray-500" />
+        <li className="inline-flex items-center">
+          <span className="text-gray-500">{mallChain?.title}</span>
+        </li>
+      </ol>
+    </nav>
+  );
+
   if (isLoading) {
     return <div className="mt-8 text-center">Loading...</div>;
   }
 
   return (
     <div className="container px-4 py-8 mx-auto">
+      <Breadcrumb />
       <h1 className="mb-6 text-3xl font-bold">
         {mallChain?.title} - Locations
       </h1>
