@@ -235,23 +235,49 @@ const LocationDetails = () => {
   const handleUpdateMallOffer = useCallback(
     async (updatedOffer) => {
       try {
-        await updateDoc(
-          doc(
-            db,
-            `mallChains/${mallChainId}/locations/${locationId}/MallOffers`,
-            updatedOffer.id
-          ),
-          { imageUrl: updatedOffer.imageUrl }
-        );
-        toast.success("Mall offer updated successfully");
-        setEditingMallOffer(null);
-        fetchLocationDetails();
+        let imageUrl = updatedOffer.imageUrl;
+
+        // If a new image file is selected, upload it
+        if (imageFile) {
+          const uploadedUrl = await handleImageUpload();
+          if (uploadedUrl) {
+            imageUrl = uploadedUrl;
+          } else {
+            // If upload fails, keep the existing URL
+            imageUrl = editingMallOffer.imageUrl;
+          }
+        }
+
+        // Only update if we have a valid imageUrl
+        if (imageUrl) {
+          await updateDoc(
+            doc(
+              db,
+              `mallChains/${mallChainId}/locations/${locationId}/MallOffers`,
+              updatedOffer.id
+            ),
+            { imageUrl: imageUrl }
+          );
+          toast.success("Mall offer updated successfully");
+          setEditingMallOffer(null);
+          setImageFile(null);
+          fetchLocationDetails();
+        } else {
+          toast.error("Invalid image URL. Please provide a valid image.");
+        }
       } catch (error) {
         console.error("Error updating mall offer:", error);
-        toast.error("Failed to update mall offer");
+        toast.error("Failed to update mall offer: " + error.message);
       }
     },
-    [mallChainId, locationId, fetchLocationDetails]
+    [
+      mallChainId,
+      locationId,
+      fetchLocationDetails,
+      handleImageUpload,
+      editingMallOffer,
+      imageFile,
+    ]
   );
 
   const Breadcrumb = () => (
