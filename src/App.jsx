@@ -55,6 +55,7 @@ function App() {
   const [authError, setAuthError] = useState(null);
   const [isUnauthorizedModalOpen, setIsUnauthorizedModalOpen] = useState(false);
   const navigate = useNavigate();
+  const [isUserDataLoaded, setIsUserDataLoaded] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
@@ -120,17 +121,19 @@ function App() {
 
   const determineUserRole = async (currentUser) => {
     try {
-      const adminRole = await checkUserRole(currentUser.email, "admins");
+      const adminRole = await checkUserRole(
+        currentUser.email,
+        "admin",
+        "admin"
+      );
       if (adminRole) return "admin";
 
       const mallOwnerRole = await checkUserRole(
         currentUser.email,
-        "mallOwners"
+        "mallOwner",
+        "mallOwner"
       );
       if (mallOwnerRole) return "mallOwner";
-
-      const userRole = await checkUserRole(currentUser.email, "users");
-      if (userRole) return "user";
 
       return null;
     } catch (error) {
@@ -138,10 +141,10 @@ function App() {
     }
   };
 
-  const checkUserRole = async (email, collectionName) => {
+  const checkUserRole = async (email, role, subCollection) => {
     try {
       const q = query(
-        collection(db, collectionName),
+        collection(db, "platform_users", role, subCollection),
         where("email", "==", email)
       );
       const snapshot = await getDocs(q);
@@ -151,38 +154,30 @@ function App() {
     }
   };
 
-  const fetchUserData = async (role, userEmail) => {
+  const fetchUserData = async () => {
     try {
-      if (role === "admin") {
-        try {
-          await fetchCollectionData("admins", setAdminData);
-        } catch (error) {
-          // Error handling remains
-        }
-        try {
-          await fetchCollectionData("mallOwners", setMallOwnerData);
-        } catch (error) {
-          // Error handling remains
-        }
-        try {
-          await fetchCollectionData("users", setUserData);
-        } catch (error) {
-          // Error handling remains
-        }
-      } else if (role === "mallOwner") {
-        try {
-          await fetchMallOwnerData(userEmail);
-        } catch (error) {
-          // Error handling remains
-        }
-        try {
-          await fetchCollectionData("users", setUserData);
-        } catch (error) {
-          // Error handling remains
-        }
+      const roles = ["admin", "mallOwner", "user"];
+      let allUsers = [];
+
+      for (const role of roles) {
+        const usersCollection = collection(db, "platform_users", role, role);
+        const querySnapshot = await getDocs(usersCollection);
+        const users = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          role,
+        }));
+        allUsers = [...allUsers, ...users];
       }
+
+      setAdminData(allUsers.filter((user) => user.role === "admin"));
+      setMallOwnerData(allUsers.filter((user) => user.role === "mallOwner"));
+      setUserData(allUsers.filter((user) => user.role === "user"));
+
+      setIsUserDataLoaded(true);
     } catch (error) {
-      // Error handling remains
+      console.error("Error fetching user data:", error);
+      toast.error("Failed to fetch user data. Please try again.");
     }
   };
 
@@ -269,30 +264,42 @@ function App() {
     }
   };
 
-  const updateUser = async (id, role, updatedData) => {
+  const updateUser = async (id, oldRole, updatedData) => {
     try {
-      const collectionName =
-        role === "admin"
-          ? "admins"
-          : role === "mallOwner"
-          ? "mallOwners"
-          : "users";
+      const newRole = updatedData.role;
 
-      const docRef = doc(db, collectionName, id);
+      // Delete the old document
+      const oldDocRef = doc(db, "platform_users", oldRole, oldRole, id);
+      await deleteDoc(oldDocRef);
 
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) {
-        throw new Error(
-          `Document with ID ${id} does not exist in ${collectionName}`
-        );
+      // Check if a user with the same email already exists in any role
+      const roles = ["admin", "mallOwner", "user"];
+      for (const role of roles) {
+        if (role !== newRole) {
+          const querySnapshot = await getDocs(
+            query(
+              collection(db, "platform_users", role, role),
+              where("email", "==", updatedData.email)
+            )
+          );
+          if (!querySnapshot.empty) {
+            // If a document with the same email exists, delete it
+            const existingDoc = querySnapshot.docs[0];
+            await deleteDoc(
+              doc(db, "platform_users", role, role, existingDoc.id)
+            );
+          }
+        }
       }
 
-      await setDoc(docRef, updatedData, { merge: true });
+      // Create a new document in the new role's collection
+      const newDocRef = doc(db, "platform_users", newRole, newRole, id);
+      await setDoc(newDocRef, { ...updatedData, id });
 
-      alert("User updated successfully");
-      fetchUserData(userRole, user.email);
+      // Fetch updated user data
+      await fetchUserData();
     } catch (error) {
-      alert(`Error updating user: ${error.message}`);
+      throw error;
     }
   };
 
@@ -315,16 +322,13 @@ function App() {
 
   const createNewUser = async (userData) => {
     if (userRole !== "admin") {
-      console.error("Only admins can create new users");
       return;
     }
 
     try {
-      const docRef = await addDoc(collection(db, "users"), userData);
-      console.log("New user added with ID: ", docRef.id);
+      await addDoc(collection(db, "users"), userData);
       // Optionally, update your UI or state to reflect the new user
     } catch (error) {
-      console.error("Error adding new user: ", error);
       // Handle the error (e.g., show an error message to the user)
     }
   };
@@ -339,54 +343,48 @@ function App() {
       let collectionName;
 
       if (userRole === "admin") {
-        collectionName = "admins";
+        collectionName = "platform_users";
+        userDocRef = doc(
+          db,
+          collectionName,
+          "admin",
+          "admin",
+          "TzHqb42NVOpDazYD1Igx"
+        );
       } else if (userRole === "mallOwner") {
-        collectionName = "mallOwners";
+        collectionName = "platform_users";
+        // First, query the collection to find the document with matching email
+        const q = query(
+          collection(db, collectionName, "mallOwner", "mallOwner"),
+          where("email", "==", user.email)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          throw new Error(`No ${userRole} found with email ${user.email}`);
+        }
+
+        // Use the first matching document's ID
+        userDocRef = doc(
+          db,
+          collectionName,
+          "mallOwner",
+          "mallOwner",
+          querySnapshot.docs[0].id
+        );
       } else {
-        collectionName = "users";
+        throw new Error(`Invalid user role: ${userRole}`);
       }
-
-      // First, query the collection to find the document with matching email
-      const q = query(
-        collection(db, collectionName),
-        where("email", "==", user.email)
-      );
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        throw new Error(`No ${userRole} found with email ${user.email}`);
-      }
-
-      // Use the first matching document's ID
-      userDocRef = doc(db, collectionName, querySnapshot.docs[0].id);
 
       await updateDoc(userDocRef, updatedData);
 
       // Update local state
       if (userRole === "admin") {
-        setAdminData(
-          adminData.map((admin) =>
-            admin.email === user.email ? { ...admin, ...updatedData } : admin
-          )
-        );
+        setAdminData([{ ...adminData[0], ...updatedData }]);
       } else if (userRole === "mallOwner") {
-        setMallOwnerData(
-          mallOwnerData.map((owner) =>
-            owner.email === user.email ? { ...owner, ...updatedData } : owner
-          )
-        );
-      } else {
-        setUserData(
-          userData.map((u) =>
-            u.email === user.email ? { ...u, ...updatedData } : u
-          )
-        );
+        setMallOwnerData([{ ...mallOwnerData[0], ...updatedData }]);
       }
-
-      toast.success("Profile updated successfully");
     } catch (error) {
-      console.error("Error updating user profile:", error);
-      toast.error(`Error updating profile: ${error.message}`);
       throw error;
     }
   };
@@ -407,6 +405,13 @@ function App() {
 
   const closeUnauthorizedModal = () => {
     setIsUnauthorizedModalOpen(false);
+  };
+
+  const ProtectedRoute = ({ children, allowedRoles }) => {
+    if (!user || !allowedRoles.includes(userRole)) {
+      return <Navigate to="/login" replace />;
+    }
+    return children;
   };
 
   return (
@@ -437,8 +442,6 @@ function App() {
           Your account is not associated with any role. Please contact an
           administrator.
         </div>
-      ) : userRole === "user" ? (
-        <div>You are not authorized to access this dashboard.</div>
       ) : (
         <div className="flex h-screen bg-gray-100">
           <Sidebar
@@ -458,28 +461,27 @@ function App() {
                 <Route
                   path="/"
                   element={
-                    <Dashboard
-                      adminData={adminData}
-                      mallOwnerData={mallOwnerData}
-                      userRole={userRole}
-                      userData={userData}
-                    />
+                    <ProtectedRoute allowedRoles={["admin", "mallOwner"]}>
+                      <Dashboard
+                        adminData={adminData}
+                        mallOwnerData={mallOwnerData}
+                        userRole={userRole}
+                        userData={userData}
+                      />
+                    </ProtectedRoute>
                   }
                 />
                 {userRole === "admin" && (
                   <Route
                     path="/users"
                     element={
-                      <Users
-                        adminData={adminData}
-                        mallOwnerData={mallOwnerData}
-                        userData={userData}
-                        userRole={userRole}
-                        addNewUser={addNewUser}
-                        updateUser={updateUser}
-                        deleteUser={deleteUser}
-                        currentUserEmail={user.email}
-                      />
+                      <ProtectedRoute allowedRoles={["admin"]}>
+                        <Users
+                          userRole={userRole}
+                          currentUserEmail={user.email}
+                          updateUser={updateUser}
+                        />
+                      </ProtectedRoute>
                     }
                   />
                 )}
@@ -494,19 +496,21 @@ function App() {
                 <Route
                   path="/profile"
                   element={
-                    <Profile
-                      userData={
-                        userRole === "admin"
-                          ? adminData.find(
-                              (admin) => admin.email === user.email
-                            )
-                          : mallOwnerData.find(
-                              (owner) => owner.email === user.email
-                            )
-                      }
-                      userRole={userRole}
-                      updateUserProfile={updateUserProfile}
-                    />
+                    isUserDataLoaded ? (
+                      <Profile
+                        userData={
+                          userRole === "admin"
+                            ? adminData[0]
+                            : userRole === "mallOwner"
+                            ? mallOwnerData[0]
+                            : null
+                        }
+                        userRole={userRole}
+                        updateUserProfile={updateUserProfile}
+                      />
+                    ) : (
+                      <div>Loading user data...</div>
+                    )
                   }
                 />
                 {(userRole === "admin" || userRole === "mallOwner") && (

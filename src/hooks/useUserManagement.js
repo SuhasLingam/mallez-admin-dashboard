@@ -8,21 +8,17 @@ import {
   setDoc,
   collection,
   getDocs,
+  query,
+  where,
 } from "firebase/firestore";
-import { db } from "../services/firebaseService"; // Make sure this import is correct
+import { db, addNewUser, deleteUser } from "../services/firebaseService";
 
-const useUserManagement = (
-  adminData,
-  mallOwnerData,
-  userData,
-  userRole,
-  currentUserEmail,
-  addNewUser,
-  updateUser,
-  deleteUser
-) => {
+const useUserManagement = (userRole, currentUserEmail, updateUser) => {
   const [displayUsers, setDisplayUsers] = useState([]);
   const [newUser, setNewUser] = useState({
+    email: "",
+    firstName: "",
+    lastName: "",
     role: "user",
     vehicleNumbers: [""],
   });
@@ -31,16 +27,129 @@ const useUserManagement = (
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [usersPerPage] = useState(10); // Set to 10 users per page
+  const [usersPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
 
-  useEffect(() => {
-    const allUsers = [...adminData, ...mallOwnerData, ...userData];
-    setDisplayUsers(allUsers);
-  }, [adminData, mallOwnerData, userData]);
+  const refreshUserLists = async () => {
+    setIsLoading(true);
+    try {
+      const roles = ["user", "admin", "mallOwner"];
+      let allUsers = [];
+
+      for (const role of roles) {
+        const usersCollection = collection(db, "platform_users", role, role);
+        const querySnapshot = await getDocs(usersCollection);
+        const users = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          role,
+        }));
+        allUsers = [...allUsers, ...users];
+      }
+
+      setDisplayUsers(allUsers);
+    } catch (error) {
+      toast.error("Failed to fetch users");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateUserWithRoleChange = async (updatedUser) => {
+    const { id, role, ...userData } = updatedUser;
+    const oldRole = editingUser.role;
+
+    try {
+      if (oldRole !== role) {
+        // Check if the document exists in the old collection
+        const oldDocRef = doc(db, "platform_users", oldRole, oldRole, id);
+        const oldDocSnap = await getDoc(oldDocRef);
+
+        if (oldDocSnap.exists()) {
+          // Delete from old collection
+          await deleteDoc(oldDocRef);
+        } else {
+          console.log(`User document not found in ${oldRole} collection`);
+        }
+
+        // Add to new collection with the same ID
+        const newDocRef = doc(db, "platform_users", role, role, id);
+        await setDoc(newDocRef, {
+          id,
+          ...userData,
+          role,
+        });
+
+        console.log(`User moved from ${oldRole} to ${role}`);
+      } else {
+        // Check if the document exists before updating
+        const docRef = doc(db, "platform_users", role, role, id);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          // Update existing document
+          await updateDoc(docRef, { ...userData, role });
+          console.log(`User updated in ${role} collection`);
+        } else {
+          // Create new document if it doesn't exist
+          await setDoc(docRef, { id, ...userData, role });
+          console.log(`User created in ${role} collection`);
+        }
+      }
+
+      await refreshUserLists();
+    } catch (error) {
+      console.error("Error updating user:", error);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async (userData) => {
+    setIsLoading(true);
+    try {
+      if (editingUser) {
+        const oldRole = editingUser.role;
+        const updatedUserData = {
+          ...editingUser,
+          ...userData,
+          role: userData.role || editingUser.role,
+        };
+        await updateUser(editingUser.id, oldRole, updatedUserData);
+        toast.success("User updated successfully");
+      } else {
+        // Check if a user with the same email already exists in any role
+        const roles = ["admin", "mallOwner", "user"];
+        for (const role of roles) {
+          const querySnapshot = await getDocs(
+            query(
+              collection(db, "platform_users", role, role),
+              where("email", "==", userData.email)
+            )
+          );
+          if (!querySnapshot.empty) {
+            throw new Error(
+              `A user with this email already exists as a ${role}`
+            );
+          }
+        }
+        await addNewUser(userData, userData.role);
+        toast.success("New user added successfully");
+      }
+      setIsModalOpen(false);
+      setEditingUser(null);
+      await refreshUserLists();
+    } catch (error) {
+      console.error("Error submitting user data:", error);
+      toast.error(
+        `Failed to ${editingUser ? "update" : "add"} user: ${error.message}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -91,90 +200,12 @@ const useUserManagement = (
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      if (editingUser) {
-        await updateUserWithRoleChange(editingUser);
-        toast.success("User updated successfully");
-      } else {
-        await addNewUser(
-          newUser.email,
-          newUser.role,
-          newUser.firstName,
-          newUser.lastName,
-          newUser.vehicleNumbers
-        );
-        toast.success("New user added successfully");
-      }
-      setIsModalOpen(false);
-      setEditingUser(null);
-      setNewUser({ role: "user", vehicleNumbers: [""] });
-    } catch (error) {
-      console.error("Error saving user:", error);
-      toast.error(`Failed to save user: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateUserWithRoleChange = async (updatedUser) => {
-    const { id, role, ...userData } = updatedUser;
-    const collections = ["users", "admins", "mallOwners"];
-    let oldCollection = null;
-    let userDoc = null;
-
-    // Find the user in one of the collections
-    for (const collectionName of collections) {
-      const docRef = doc(db, collectionName, id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        oldCollection = collectionName;
-        userDoc = docSnap;
-        break;
-      }
-    }
-
-    if (!userDoc) {
-      throw new Error("User not found in any collection");
-    }
-
-    const newCollection =
-      role === "admin"
-        ? "admins"
-        : role === "mallOwner"
-        ? "mallOwners"
-        : "users";
-
-    if (oldCollection !== newCollection) {
-      // Role has changed, move the user to the new collection
-      await setDoc(doc(db, newCollection, id), { id, role, ...userData });
-      await deleteDoc(doc(db, oldCollection, id));
-    } else {
-      // Role hasn't changed, update in the same collection
-      await updateDoc(doc(db, oldCollection, id), { role, ...userData });
-    }
-
-    // Refresh the user lists
-    await refreshUserLists();
-  };
-
-  const refreshUserLists = async () => {
-    const fetchUsers = async (collectionName) => {
-      const querySnapshot = await getDocs(collection(db, collectionName));
-      return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    };
-
-    const newAdminData = await fetchUsers("admins");
-    const newMallOwnerData = await fetchUsers("mallOwners");
-    const newUserData = await fetchUsers("users");
-
-    setDisplayUsers([...newAdminData, ...newMallOwnerData, ...newUserData]);
-  };
-
   const handleEdit = (user) => {
     setEditingUser(user);
+    setNewUser({
+      ...user,
+      oldRole: user.role, // Add this line to store the old role
+    });
     setIsModalOpen(true);
   };
 
@@ -184,26 +215,28 @@ const useUserManagement = (
   };
 
   const confirmDelete = async () => {
-    if (editingUser) {
+    if (editingUser && editingUser.id && editingUser.role) {
       setIsLoading(true);
       try {
         await deleteUser(editingUser.id, editingUser.role);
         toast.success("User deleted successfully");
         setIsDeleteModalOpen(false);
         setEditingUser(null);
+        refreshUserLists();
       } catch (error) {
-        console.error("Error deleting user:", error);
-        toast.error("Failed to delete user");
+        toast.error(`Failed to delete user: ${error.message}`);
       } finally {
         setIsLoading(false);
       }
+    } else {
+      toast.error("Cannot delete user: Incomplete user data");
     }
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingUser(null);
-    setNewUser({ role: "user", vehicleNumbers: [""] });
+    setNewUser({ role: "users", vehicleNumbers: [""] });
   };
 
   const handleSearchAndFilter = (
@@ -218,6 +251,10 @@ const useUserManagement = (
     setSortOrder(newSortOrder);
     setCurrentPage(1);
   };
+
+  useEffect(() => {
+    refreshUserLists();
+  }, []);
 
   return {
     displayUsers,

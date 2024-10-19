@@ -40,7 +40,7 @@ const UserTable = ({ users, userRole, currentUserEmail, onEdit, onDelete }) => {
         <tbody>
           {users.map((user) => (
             <tr
-              key={user.id || user.email}
+              key={`${user.id}-${user.role}`}
               className="hover:bg-gray-50 md:table-row flex flex-col mb-4 transition-colors border rounded-lg shadow-sm"
             >
               <td className="md:border-b-0 px-5 py-5 text-sm bg-white border-b border-gray-200">
@@ -99,7 +99,7 @@ const UserTable = ({ users, userRole, currentUserEmail, onEdit, onDelete }) => {
                     )}
                     {canDelete(user) && (
                       <button
-                        onClick={() => onDelete(user.id, user.role)}
+                        onClick={() => onDelete(user)}
                         className="hover:text-red-700 text-red-500 transition-colors"
                       >
                         <FaTrash />
