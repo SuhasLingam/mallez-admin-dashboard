@@ -16,9 +16,9 @@ import {
   FaEdit,
   FaTrash,
   FaPlus,
-  FaStore,
   FaChevronRight,
   FaUpload,
+  FaUserPlus,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -59,10 +59,6 @@ const MallLocations = () => {
       setIsLoading(false);
     }
   };
-
-  useEffect(() => {
-    console.log("Locations updated:", locations);
-  }, [locations]);
 
   const handleImageChange = (e) => {
     if (e.target.files[0]) {
@@ -117,7 +113,6 @@ const MallLocations = () => {
         locationData
       );
 
-      // Create empty MallOffers and floorLayout collections for the new location
       await setDoc(
         doc(
           db,
@@ -154,7 +149,6 @@ const MallLocations = () => {
         updatedLocation
       );
       toast.success("Location updated successfully");
-      // Update the location in the state
       setLocations(
         locations.map((loc) =>
           loc.id === id ? { ...loc, ...updatedLocation } : loc
@@ -171,13 +165,17 @@ const MallLocations = () => {
       try {
         await deleteDoc(doc(db, `mallChains/${mallChainId}/locations`, id));
         toast.success("Location deleted successfully");
-        // Remove the deleted location from the state
         setLocations(locations.filter((loc) => loc.id !== id));
       } catch (error) {
         console.error("Error deleting location:", error);
         toast.error("Failed to delete location");
       }
     }
+  };
+
+  const handleAssignMallOwner = (locationId) => {
+    console.log(`Assign mall owner for location: ${locationId}`);
+    // TODO: Implement the logic to assign a mall owner
   };
 
   const Breadcrumb = () => (
@@ -206,9 +204,9 @@ const MallLocations = () => {
       <h1 className="mb-6 text-3xl font-bold">
         {mallChain?.title} - Locations
       </h1>
-      <div className="mb-6">
-        <h2 className="mb-2 text-xl font-semibold">Add New Location</h2>
-        <div className="flex flex-col space-y-2">
+      <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
+        <h2 className="mb-4 text-xl font-semibold">Add New Location</h2>
+        <div className="flex flex-col space-y-4">
           <input
             type="text"
             value={newLocation.name}
@@ -216,7 +214,7 @@ const MallLocations = () => {
               setNewLocation({ ...newLocation, name: e.target.value })
             }
             placeholder="Location name"
-            className="p-2 border rounded"
+            className="focus:outline-none focus:ring-2 focus:ring-blue-500 p-2 border rounded"
           />
           <input
             type="text"
@@ -225,7 +223,7 @@ const MallLocations = () => {
               setNewLocation({ ...newLocation, imageUrl: e.target.value })
             }
             placeholder="Image URL"
-            className="p-2 border rounded"
+            className="focus:outline-none focus:ring-2 focus:ring-blue-500 p-2 border rounded"
           />
           <div className="flex items-center space-x-2">
             <input
@@ -237,9 +235,9 @@ const MallLocations = () => {
             />
             <button
               onClick={() => fileInputRef.current.click()}
-              className="hover:bg-blue-600 px-4 py-2 text-white bg-blue-500 rounded"
+              className="hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center px-4 py-2 text-white transition duration-300 ease-in-out bg-blue-500 rounded"
             >
-              <FaUpload className="inline-block mr-2" /> Choose Image
+              <FaUpload className="mr-2" /> Choose Image
             </button>
             {imageFile && (
               <span className="text-sm text-gray-600">{imageFile.name}</span>
@@ -247,51 +245,62 @@ const MallLocations = () => {
           </div>
           <button
             onClick={handleAddLocation}
-            className="hover:bg-green-600 p-2 text-white bg-green-500 rounded"
+            className="hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center px-4 py-2 text-white transition duration-300 ease-in-out bg-green-500 rounded"
           >
-            <FaPlus className="inline-block mr-2" /> Add Location
+            <FaPlus className="mr-2" /> Add Location
           </button>
         </div>
       </div>
-      <div className="md:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-4">
+      <div className="md:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-6">
         {locations.map((location) => (
-          <div key={location.id} className="p-4 bg-white rounded-lg shadow-md">
-            <h3 className="mb-2 text-lg font-semibold">{location.name}</h3>
-            {location.imageUrl && (
-              <img
-                src={location.imageUrl}
-                alt={location.name}
-                className="object-cover w-full h-40 mb-2 rounded"
-                onError={(e) => {
-                  console.error("Image failed to load:", e);
-                  e.target.src = "path/to/fallback/image.jpg"; // Replace with a fallback image
-                }}
-              />
-            )}
-            <div className="flex items-center justify-between mt-4">
-              <Link
-                to={`/mall/${mallChainId}/location/${location.id}`}
-                className="hover:bg-blue-600 px-4 py-2 text-white bg-blue-500 rounded"
-              >
-                View Details
-              </Link>
-              <div>
-                <button
-                  onClick={() =>
-                    handleUpdateLocation(location.id, {
-                      ...location,
-                      name: prompt("Enter new name", location.name),
-                    })
-                  }
-                  className="hover:text-blue-700 mr-2 text-blue-500"
+          <div
+            key={location.id}
+            className="overflow-hidden bg-white rounded-lg shadow-md"
+          >
+            <div className="p-4">
+              <h3 className="mb-2 text-lg font-semibold">{location.name}</h3>
+              {location.imageUrl && (
+                <img
+                  src={location.imageUrl}
+                  alt={location.name}
+                  className="object-cover w-full h-48 mb-4 rounded"
+                  onError={(e) => {
+                    console.error("Image failed to load:", e);
+                    e.target.src = "path/to/fallback/image.jpg";
+                  }}
+                />
+              )}
+              <div className="flex flex-col space-y-2">
+                <Link
+                  to={`/mall/${mallChainId}/location/${location.id}`}
+                  className="hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center justify-center px-4 py-2 text-white transition duration-300 ease-in-out bg-blue-500 rounded"
                 >
-                  <FaEdit className="w-5 h-5" />
-                </button>
+                  View Details
+                </Link>
+                <div className="flex justify-between">
+                  <button
+                    onClick={() =>
+                      handleUpdateLocation(location.id, {
+                        ...location,
+                        name: prompt("Enter new name", location.name),
+                      })
+                    }
+                    className="hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center px-3 py-1 text-blue-500 transition duration-300 ease-in-out border border-blue-500 rounded"
+                  >
+                    <FaEdit className="mr-1" /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLocation(location.id)}
+                    className="hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center px-3 py-1 text-red-500 transition duration-300 ease-in-out border border-red-500 rounded"
+                  >
+                    <FaTrash className="mr-1" /> Delete
+                  </button>
+                </div>
                 <button
-                  onClick={() => handleDeleteLocation(location.id)}
-                  className="hover:text-red-700 text-red-500"
+                  onClick={() => handleAssignMallOwner(location.id)}
+                  className="hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center px-3 py-1 text-white transition duration-300 ease-in-out bg-green-500 rounded"
                 >
-                  <FaTrash className="w-5 h-5" />
+                  <FaUserPlus className="mr-1" /> Assign Mall Owner
                 </button>
               </div>
             </div>
