@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaUser,
   FaEnvelope,
@@ -11,10 +11,74 @@ import {
 import { motion } from "framer-motion";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { db } from "../../services/firebaseService";
 
 const Profile = ({ userData, userRole, updateUserProfile }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedData, setEditedData] = useState({ ...userData });
+  const [editedData, setEditedData] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    console.log("Profile component mounted");
+    console.log("userData:", userData);
+    console.log("userRole:", userRole);
+
+    if (userData) {
+      setEditedData({ ...userData });
+      setIsLoading(false);
+    } else {
+      console.log("userData is undefined. Waiting for data...");
+      setIsLoading(true);
+    }
+  }, [userData, userRole]);
+
+  const fetchAdditionalData = async () => {
+    if (!userData?.email) {
+      console.error("User email is not available");
+      toast.error("Failed to fetch additional profile data.");
+      return;
+    }
+
+    try {
+      let docRef;
+      if (userRole === "admin") {
+        docRef = doc(
+          db,
+          "platform_users",
+          "admin",
+          "admin",
+          "TzHqb42NVOpDazYD1Igx"
+        );
+      } else if (userRole === "mallOwner") {
+        // Assuming mallOwner has a similar structure, adjust if needed
+        docRef = doc(
+          db,
+          "platform_users",
+          "mallOwner",
+          "mallOwner",
+          userData.uid
+        );
+      }
+
+      console.log(
+        `Fetching data for ${userRole} with email: ${userData.email}`
+      );
+      console.log("Document reference:", docRef.path);
+
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        console.log("Document data:", docSnap.data());
+        setEditedData((prevData) => ({ ...prevData, ...docSnap.data() }));
+      } else {
+        console.log("No such document!");
+        toast.error("User profile data not found.");
+      }
+    } catch (error) {
+      console.error("Error fetching additional data:", error);
+      toast.error("Failed to fetch additional profile data.");
+    }
+  };
 
   const validateVehicleNumber = (number) => {
     const pattern = /\b[A-Z]{2}[-.\s]?\d{2}[-.\s]?[A-Z]{1,2}[-.\s]?\d{4}\b/;
@@ -35,7 +99,7 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Validate vehicle numbers
+      // Validate vehicle numbers for user role
       if (userRole === "user") {
         const invalidVehicleNumbers = editedData.vehicleNumbers.filter(
           (vn) => vn && !validateVehicleNumber(vn)
@@ -48,10 +112,43 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
         }
       }
 
-      await updateUserProfile(editedData);
+      if (userRole === "admin") {
+        const docRef = doc(
+          db,
+          "platform_users",
+          "admin",
+          "admin",
+          "TzHqb42NVOpDazYD1Igx"
+        );
+        console.log(`Updating data for admin with email: ${userData.email}`);
+        console.log("Document reference:", docRef.path);
+        console.log("Data to update:", editedData);
+
+        await updateDoc(docRef, editedData);
+        console.log("Document successfully updated");
+      } else if (userRole === "mallOwner" && userData?.uid) {
+        const docRef = doc(
+          db,
+          "platform_users",
+          "mallOwner",
+          "mallOwner",
+          userData.uid
+        );
+        console.log(`Updating data for mallOwner with UID: ${userData.uid}`);
+        console.log("Document reference:", docRef.path);
+        console.log("Data to update:", editedData);
+
+        await updateDoc(docRef, editedData);
+        console.log("Document successfully updated");
+      } else {
+        console.log("Updating user profile with:", editedData);
+        await updateUserProfile(editedData);
+      }
+
       setIsEditing(false);
       toast.success("Profile updated successfully!");
     } catch (error) {
+      console.error("Error updating profile:", error);
       toast.error("Failed to update profile. Please try again.");
     }
   };
@@ -70,7 +167,7 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
           name={name}
           value={value}
           onChange={handleInputChange}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+          className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
         />
       ) : (
         <p className="mt-1 text-sm text-gray-900">{value}</p>
@@ -78,20 +175,28 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
     </div>
   );
 
+  if (isLoading) {
+    return <div>Loading user data...</div>;
+  }
+
+  if (!userData) {
+    return <div>Error: User data not available. Please try again later.</div>;
+  }
+
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container px-4 py-8 mx-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="max-w-2xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden"
+        className="max-w-2xl mx-auto overflow-hidden bg-white rounded-lg shadow-lg"
       >
         <div className="px-6 py-4 bg-indigo-600">
           <h2 className="text-2xl font-bold text-white">User Profile</h2>
         </div>
         <div className="p-6">
           <div className="flex items-center justify-center mb-6">
-            <div className="w-32 h-32 bg-indigo-100 rounded-full flex items-center justify-center">
+            <div className="flex items-center justify-center w-32 h-32 bg-indigo-100 rounded-full">
               <FaUser className="text-6xl text-indigo-600" />
             </div>
           </div>
@@ -114,17 +219,17 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                 </label>
                 {isEditing ? (
                   editedData.vehicleNumbers.map((vn, index) => (
-                    <div key={index} className="mt-1 flex items-center">
+                    <div key={index} className="flex items-center mt-1">
                       <input
                         type="text"
                         value={vn}
                         onChange={(e) =>
                           handleVehicleNumberChange(index, e.target.value)
                         }
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                        className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full border-gray-300 rounded-md shadow-sm"
                       />
                       {!validateVehicleNumber(vn) && vn && (
-                        <span className="ml-2 text-red-500 text-sm">
+                        <span className="ml-2 text-sm text-red-500">
                           Invalid format
                         </span>
                       )}
@@ -139,20 +244,31 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                 )}
               </div>
             )}
-            <div className="mt-6 flex justify-end">
+            {(userRole === "admin" || userRole === "mallOwner") && (
+              <>
+                {renderField(
+                  "Phone Number",
+                  editedData.phoneNumber,
+                  "phoneNumber"
+                )}
+                {renderField("Address", editedData.address, "address")}
+                {/* Add more fields specific to admin or mallOwner if needed */}
+              </>
+            )}
+            <div className="flex justify-end mt-6">
               {isEditing ? (
                 <>
                   <button
                     type="button"
                     onClick={cancelEdit}
-                    className="mr-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    className="hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 mr-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md"
                   >
                     <FaTimes className="inline-block mr-2" />
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm"
                   >
                     <FaSave className="inline-block mr-2" />
                     Save Changes
@@ -162,7 +278,7 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                 <button
                   type="button"
                   onClick={() => setIsEditing(true)}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm"
                 >
                   <FaEdit className="inline-block mr-2" />
                   Edit Profile
@@ -170,6 +286,11 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
               )}
             </div>
           </form>
+          <pre className="p-2 mt-4 bg-gray-100 rounded">
+            <code>
+              {JSON.stringify({ userData, userRole, editedData }, null, 2)}
+            </code>
+          </pre>
         </div>
       </motion.div>
     </div>

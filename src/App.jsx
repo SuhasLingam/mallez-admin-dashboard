@@ -55,6 +55,7 @@ function App() {
   const [authError, setAuthError] = useState(null);
   const [isUnauthorizedModalOpen, setIsUnauthorizedModalOpen] = useState(false);
   const navigate = useNavigate();
+  const [isUserDataLoaded, setIsUserDataLoaded] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
@@ -156,35 +157,33 @@ function App() {
   const fetchUserData = async (role, userEmail) => {
     try {
       if (role === "admin") {
-        try {
-          await fetchCollectionData("admins", setAdminData);
-        } catch (error) {
-          // Error handling remains
-        }
-        try {
-          await fetchCollectionData("mallOwners", setMallOwnerData);
-        } catch (error) {
-          // Error handling remains
-        }
-        try {
-          await fetchCollectionData("users", setUserData);
-        } catch (error) {
-          // Error handling remains
+        const adminDocRef = doc(
+          db,
+          "platform_users",
+          "admin",
+          "admin",
+          "TzHqb42NVOpDazYD1Igx"
+        );
+        const adminDocSnap = await getDoc(adminDocRef);
+        if (adminDocSnap.exists()) {
+          setAdminData([{ id: adminDocSnap.id, ...adminDocSnap.data() }]);
         }
       } else if (role === "mallOwner") {
-        try {
-          await fetchMallOwnerData(userEmail);
-        } catch (error) {
-          // Error handling remains
-        }
-        try {
-          await fetchCollectionData("users", setUserData);
-        } catch (error) {
-          // Error handling remains
+        // Fetch mallOwner data (adjust as needed)
+        const q = query(
+          collection(db, "platform_users", "mallOwner", "mallOwner"),
+          where("email", "==", userEmail)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          const mallOwnerDoc = snapshot.docs[0];
+          setMallOwnerData([{ id: mallOwnerDoc.id, ...mallOwnerDoc.data() }]);
         }
       }
+      setIsUserDataLoaded(true);
     } catch (error) {
-      // Error handling remains
+      console.error("Error fetching user data:", error);
+      toast.error("Failed to fetch user data. Please try again.");
     }
   };
 
@@ -505,19 +504,21 @@ function App() {
                 <Route
                   path="/profile"
                   element={
-                    <Profile
-                      userData={
-                        userRole === "admin"
-                          ? adminData.find(
-                              (admin) => admin.email === user.email
-                            )
-                          : mallOwnerData.find(
-                              (owner) => owner.email === user.email
-                            )
-                      }
-                      userRole={userRole}
-                      updateUserProfile={updateUserProfile}
-                    />
+                    isUserDataLoaded ? (
+                      <Profile
+                        userData={
+                          userRole === "admin"
+                            ? adminData[0]
+                            : userRole === "mallOwner"
+                            ? mallOwnerData[0]
+                            : null
+                        }
+                        userRole={userRole}
+                        updateUserProfile={updateUserProfile}
+                      />
+                    ) : (
+                      <div>Loading user data...</div>
+                    )
                   }
                 />
                 {(userRole === "admin" || userRole === "mallOwner") && (
