@@ -39,6 +39,8 @@ import MallDetails from "./components/mallManagement/MallDetails";
 import MallLocations from "./components/mallManagement/MallLocations";
 import LocationDetails from "./components/mallManagement/LocationDetails";
 import { db, auth } from "./services/firebaseService";
+import MallOwnerDashboard from "./components/mallOwner/MallOwnerDashboard";
+import MallOwnerLocationDetails from "./components/mallOwner/MallOwnerLocationDetails";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -248,18 +250,25 @@ function App() {
     try {
       const newUserData = { email, firstName, lastName, role };
       if (role === "user") newUserData.vehicleNumber = vehicleNumber;
-      const collectionName =
-        role === "admin"
-          ? "admins"
-          : role === "mallOwner"
-          ? "mallOwners"
-          : "users";
 
-      const docRef = await addDoc(collection(db, collectionName), newUserData);
+      let collectionPath;
+      if (role === "admin") {
+        collectionPath = "platform_users/admin/admin";
+      } else if (role === "mallOwner") {
+        collectionPath = "platform_users/mallOwner/mallOwner";
+      } else {
+        collectionPath = "platform_users/user/user";
+      }
+
+      const docRef = await addDoc(collection(db, collectionPath), newUserData);
+      console.log(
+        `New ${role} added successfully at path: ${collectionPath}/${docRef.id}`
+      );
       alert(`New ${role} added successfully`);
       fetchUserData(userRole, user.email);
       return docRef.id;
     } catch (error) {
+      console.error(`Error adding new ${role}:`, error);
       alert(`Error adding new ${role}: ${error.message}`);
     }
   };
@@ -521,15 +530,27 @@ function App() {
                     />
                     <Route
                       path="/mall/:mallChainId"
-                      element={<MallDetails />}
+                      element={<MallDetails userRole={userRole} />}
                     />
                     <Route
                       path="/mall/:mallChainId/locations"
-                      element={<MallLocations />}
+                      element={<MallLocations userRole={userRole} />}
                     />
                     <Route
                       path="/mall/:mallChainId/location/:locationId"
-                      element={<LocationDetails />}
+                      element={<LocationDetails userRole={userRole} />}
+                    />
+                  </>
+                )}
+                {userRole === "mallOwner" && (
+                  <>
+                    <Route
+                      path="/mall-owner"
+                      element={<MallOwnerDashboard />}
+                    />
+                    <Route
+                      path="/location/:locationId"
+                      element={<MallOwnerLocationDetails />}
                     />
                   </>
                 )}
