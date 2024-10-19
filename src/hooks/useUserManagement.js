@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { db, addNewUser, deleteUser } from "../services/firebaseService";
 
-const useUserManagement = (userRole, currentUserEmail) => {
+const useUserManagement = (userRole, currentUserEmail, updateUser) => {
   const [displayUsers, setDisplayUsers] = useState([]);
   const [newUser, setNewUser] = useState({
     email: "",
@@ -112,21 +112,20 @@ const useUserManagement = (userRole, currentUserEmail) => {
     setIsLoading(true);
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, editingUser.oldRole, userData);
+        await updateUser(editingUser.id, userData.role, userData);
+        toast.success("User updated successfully");
       } else {
-        await addNewUser(
-          userData.email,
-          userData.role,
-          userData.firstName,
-          userData.lastName,
-          userData.vehicleNumber
-        );
+        await addNewUser(userData, userData.role);
+        toast.success("New user added successfully");
       }
       setIsModalOpen(false);
       setEditingUser(null);
       refreshUserLists();
     } catch (error) {
       console.error("Error submitting user data:", error);
+      toast.error(
+        `Failed to ${editingUser ? "update" : "add"} user: ${error.message}`
+      );
     } finally {
       setIsLoading(false);
     }

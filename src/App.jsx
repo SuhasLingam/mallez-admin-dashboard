@@ -270,35 +270,27 @@ function App() {
     }
   };
 
-  const updateUser = async (id, oldRole, updatedData) => {
+  const updateUser = async (id, role, updatedData) => {
     try {
-      const oldCollectionName =
-        oldRole === "admin"
-          ? "admins"
-          : oldRole === "mallOwner"
-          ? "mallOwners"
-          : "users";
+      const docRef = doc(db, "platform_users", role, role, id);
 
-      const newCollectionName =
-        updatedData.role === "admin"
-          ? "admins"
-          : updatedData.role === "mallOwner"
-          ? "mallOwners"
-          : "users";
+      // Check if the document exists
+      const docSnap = await getDoc(docRef);
 
-      // Delete the old document
-      const oldDocRef = doc(db, oldCollectionName, id);
-      await deleteDoc(oldDocRef);
+      if (docSnap.exists()) {
+        // Document exists, update it
+        await updateDoc(docRef, updatedData);
+        console.log("User updated successfully");
+      } else {
+        // Document doesn't exist, create it
+        await setDoc(docRef, { ...updatedData, id });
+        console.log("User created successfully");
+      }
 
-      // Create a new document in the new collection
-      const newDocRef = doc(db, newCollectionName, id);
-      await setDoc(newDocRef, updatedData);
-
-      alert("User updated successfully");
       await fetchUserData(userRole, user.email);
     } catch (error) {
-      console.error("Error updating user:", error);
-      alert(`Error updating user: ${error.message}`);
+      console.error("Error updating/creating user:", error);
+      throw error;
     }
   };
 

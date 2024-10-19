@@ -1,11 +1,12 @@
 import { db, auth, storage, firebaseConfig } from "../config/firebaseConfig";
-import { collection, addDoc, doc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, doc, deleteDoc, setDoc } from "firebase/firestore";
 
 export { db, auth, storage, firebaseConfig };
 
 export const addNewUser = async (userData, role) => {
   const usersRef = collection(db, "platform_users", role, role);
-  await addDoc(usersRef, { ...userData, role });
+  const newDocRef = doc(usersRef);
+  await setDoc(newDocRef, { ...userData, id: newDocRef.id });
 };
 
 export const deleteUser = async (userId, userRole) => {
