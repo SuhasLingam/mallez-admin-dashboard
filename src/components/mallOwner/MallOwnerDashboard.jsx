@@ -76,10 +76,32 @@ const MallOwnerDashboard = () => {
         toast.error("Assigned location not found");
         setAssignedLocation(null);
       } else {
+        const locationData = locationDoc.data();
+
+        // Fetch floor layouts count
+        const floorLayoutsSnapshot = await getDocs(
+          collection(
+            db,
+            `mallChains/${assignedMallChainId}/locations/${assignedLocationId}/floorLayout`
+          )
+        );
+        const floorLayoutsCount = floorLayoutsSnapshot.size;
+
+        // Fetch active offers count
+        const mallOffersSnapshot = await getDocs(
+          collection(
+            db,
+            `mallChains/${assignedMallChainId}/locations/${assignedLocationId}/MallOffers`
+          )
+        );
+        const activeOffersCount = mallOffersSnapshot.size;
+
         setAssignedLocation({
           id: locationDoc.id,
-          ...locationDoc.data(),
+          ...locationData,
           mallChainId: assignedMallChainId,
+          floorLayoutsCount,
+          activeOffersCount,
         });
       }
     } catch (error) {
@@ -144,13 +166,7 @@ const MallOwnerDashboard = () => {
             <h3 className="mb-2 text-lg font-semibold text-gray-700">
               Quick Stats
             </h3>
-            <div className="sm:grid-cols-3 grid grid-cols-2 gap-4">
-              <div className="p-3 bg-white rounded-lg shadow">
-                <p className="text-sm text-gray-500">Total Stores</p>
-                <p className="text-xl font-semibold">
-                  {assignedLocation.totalStores || 0}
-                </p>
-              </div>
+            <div className="sm:grid-cols-2 grid grid-cols-1 gap-4">
               <div className="p-3 bg-white rounded-lg shadow">
                 <p className="text-sm text-gray-500">Floor Layouts</p>
                 <p className="text-xl font-semibold">
