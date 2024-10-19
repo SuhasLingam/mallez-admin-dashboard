@@ -270,29 +270,34 @@ function App() {
     }
   };
 
-  const updateUser = async (id, role, updatedData) => {
+  const updateUser = async (id, oldRole, updatedData) => {
     try {
-      const collectionName =
-        role === "admin"
+      const oldCollectionName =
+        oldRole === "admin"
           ? "admins"
-          : role === "mallOwner"
+          : oldRole === "mallOwner"
           ? "mallOwners"
           : "users";
 
-      const docRef = doc(db, collectionName, id);
+      const newCollectionName =
+        updatedData.role === "admin"
+          ? "admins"
+          : updatedData.role === "mallOwner"
+          ? "mallOwners"
+          : "users";
 
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) {
-        throw new Error(
-          `Document with ID ${id} does not exist in ${collectionName}`
-        );
-      }
+      // Delete the old document
+      const oldDocRef = doc(db, oldCollectionName, id);
+      await deleteDoc(oldDocRef);
 
-      await setDoc(docRef, updatedData, { merge: true });
+      // Create a new document in the new collection
+      const newDocRef = doc(db, newCollectionName, id);
+      await setDoc(newDocRef, updatedData);
 
       alert("User updated successfully");
-      fetchUserData(userRole, user.email);
+      await fetchUserData(userRole, user.email);
     } catch (error) {
+      console.error("Error updating user:", error);
       alert(`Error updating user: ${error.message}`);
     }
   };
@@ -480,14 +485,9 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={["admin"]}>
                         <Users
-                          adminData={adminData}
-                          mallOwnerData={mallOwnerData}
-                          userData={userData}
                           userRole={userRole}
-                          addNewUser={addNewUser}
-                          updateUser={updateUser}
-                          deleteUser={deleteUser}
                           currentUserEmail={user.email}
+                          updateUser={updateUser}
                         />
                       </ProtectedRoute>
                     }

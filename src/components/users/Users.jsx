@@ -7,7 +7,7 @@ import Pagination from "../common/Pagination";
 import ConfirmationModal from "../common/ConfirmationModal";
 import useUserManagement from "../../hooks/useUserManagement";
 
-const Users = ({ userRole, currentUserEmail }) => {
+const Users = ({ userRole, currentUserEmail, updateUser }) => {
   const {
     displayUsers,
     newUser,
@@ -34,7 +34,7 @@ const Users = ({ userRole, currentUserEmail }) => {
     setCurrentPage,
     handleSearchAndFilter,
     refreshUserLists,
-  } = useUserManagement(userRole, currentUserEmail);
+  } = useUserManagement(userRole, currentUserEmail, updateUser);
 
   useEffect(() => {
     refreshUserLists();
@@ -85,7 +85,7 @@ const Users = ({ userRole, currentUserEmail }) => {
 
   const renderUserCard = (user) => (
     <div
-      key={user.id}
+      key={`${user.role}-${user.id}`}
       className="hover:shadow-lg p-4 mb-4 transition-shadow duration-300 bg-white rounded-lg shadow-md"
     >
       <div className="flex items-center justify-between mb-2">
@@ -128,7 +128,7 @@ const Users = ({ userRole, currentUserEmail }) => {
         </button>
         {user.email !== currentUserEmail && (
           <button
-            onClick={() => handleDelete(user.id, user.role)}
+            onClick={() => handleDelete(user)}
             className="hover:text-red-700 text-red-500 transition-colors duration-300"
           >
             <FaTrash />
@@ -180,7 +180,7 @@ const Users = ({ userRole, currentUserEmail }) => {
                 />
               </div>
               <div className="md:hidden sm:grid-cols-2 grid grid-cols-1 gap-4">
-                {currentUsers.map(renderUserCard)}
+                {currentUsers.map((user) => renderUserCard(user))}
               </div>
             </>
           )}

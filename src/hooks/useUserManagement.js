@@ -111,20 +111,22 @@ const useUserManagement = (userRole, currentUserEmail) => {
   const handleSubmit = async (userData) => {
     setIsLoading(true);
     try {
-      if (userData.id) {
-        await updateUserWithRoleChange(userData);
-        toast.success("User updated successfully");
+      if (editingUser) {
+        await updateUser(editingUser.id, editingUser.oldRole, userData);
       } else {
-        await addNewUser(userData, userData.role);
-        toast.success("New user added successfully");
+        await addNewUser(
+          userData.email,
+          userData.role,
+          userData.firstName,
+          userData.lastName,
+          userData.vehicleNumber
+        );
       }
       setIsModalOpen(false);
       setEditingUser(null);
-      setNewUser({ role: "user", vehicleNumbers: [""] });
-      await refreshUserLists();
+      refreshUserLists();
     } catch (error) {
-      console.error("Error saving user:", error);
-      toast.error(`Failed to save user: ${error.message}`);
+      console.error("Error submitting user data:", error);
     } finally {
       setIsLoading(false);
     }
@@ -181,6 +183,10 @@ const useUserManagement = (userRole, currentUserEmail) => {
 
   const handleEdit = (user) => {
     setEditingUser(user);
+    setNewUser({
+      ...user,
+      oldRole: user.role, // Add this line to store the old role
+    });
     setIsModalOpen(true);
   };
 
@@ -190,19 +196,27 @@ const useUserManagement = (userRole, currentUserEmail) => {
   };
 
   const confirmDelete = async () => {
-    if (editingUser) {
+    if (editingUser && editingUser.id && editingUser.role) {
       setIsLoading(true);
       try {
+        console.log("Confirming delete for user:", editingUser);
         await deleteUser(editingUser.id, editingUser.role);
         toast.success("User deleted successfully");
         setIsDeleteModalOpen(false);
         setEditingUser(null);
+        refreshUserLists();
       } catch (error) {
-        console.error("Error deleting user:", error);
-        toast.error("Failed to delete user");
+        console.error("Error in confirmDelete:", error);
+        toast.error(`Failed to delete user: ${error.message}`);
       } finally {
         setIsLoading(false);
       }
+    } else {
+      console.error(
+        "Attempted to delete user, but user data is incomplete",
+        editingUser
+      );
+      toast.error("Cannot delete user: Incomplete user data");
     }
   };
 
