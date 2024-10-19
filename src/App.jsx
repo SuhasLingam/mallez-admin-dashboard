@@ -154,32 +154,26 @@ function App() {
     }
   };
 
-  const fetchUserData = async (role, userEmail) => {
+  const fetchUserData = async () => {
     try {
-      if (role === "admin") {
-        const adminDocRef = doc(
-          db,
-          "platform_users",
-          "admin",
-          "admin",
-          "TzHqb42NVOpDazYD1Igx"
-        );
-        const adminDocSnap = await getDoc(adminDocRef);
-        if (adminDocSnap.exists()) {
-          setAdminData([{ id: adminDocSnap.id, ...adminDocSnap.data() }]);
-        }
-      } else if (role === "mallOwner") {
-        // Fetch mallOwner data (adjust as needed)
-        const q = query(
-          collection(db, "platform_users", "mallOwner", "mallOwner"),
-          where("email", "==", userEmail)
-        );
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const mallOwnerDoc = snapshot.docs[0];
-          setMallOwnerData([{ id: mallOwnerDoc.id, ...mallOwnerDoc.data() }]);
-        }
+      const roles = ["admin", "mallOwner", "user"];
+      let allUsers = [];
+
+      for (const role of roles) {
+        const usersCollection = collection(db, "platform_users", role, role);
+        const querySnapshot = await getDocs(usersCollection);
+        const users = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          role,
+        }));
+        allUsers = [...allUsers, ...users];
       }
+
+      setAdminData(allUsers.filter((user) => user.role === "admin"));
+      setMallOwnerData(allUsers.filter((user) => user.role === "mallOwner"));
+      setUserData(allUsers.filter((user) => user.role === "user"));
+
       setIsUserDataLoaded(true);
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -270,26 +264,50 @@ function App() {
     }
   };
 
-  const updateUser = async (id, role, updatedData) => {
+  const updateUser = async (id, oldRole, updatedData) => {
     try {
-      const docRef = doc(db, "platform_users", role, role, id);
+      const newRole = updatedData.role;
 
-      // Check if the document exists
-      const docSnap = await getDoc(docRef);
+      console.log(
+        `Updating user: ID=${id}, Old Role=${oldRole}, New Role=${newRole}`
+      );
 
-      if (docSnap.exists()) {
-        // Document exists, update it
-        await updateDoc(docRef, updatedData);
-        console.log("User updated successfully");
-      } else {
-        // Document doesn't exist, create it
-        await setDoc(docRef, { ...updatedData, id });
-        console.log("User created successfully");
+      // Delete the old document
+      const oldDocRef = doc(db, "platform_users", oldRole, oldRole, id);
+      await deleteDoc(oldDocRef);
+      console.log(`Deleted user from ${oldRole} collection`);
+
+      // Check if a user with the same email already exists in any role
+      const roles = ["admin", "mallOwner", "user"];
+      for (const role of roles) {
+        if (role !== newRole) {
+          const querySnapshot = await getDocs(
+            query(
+              collection(db, "platform_users", role, role),
+              where("email", "==", updatedData.email)
+            )
+          );
+          if (!querySnapshot.empty) {
+            // If a document with the same email exists, delete it
+            const existingDoc = querySnapshot.docs[0];
+            await deleteDoc(
+              doc(db, "platform_users", role, role, existingDoc.id)
+            );
+            console.log(`Deleted duplicate user from ${role} collection`);
+          }
+        }
       }
 
-      await fetchUserData(userRole, user.email);
+      // Create a new document in the new role's collection
+      const newDocRef = doc(db, "platform_users", newRole, newRole, id);
+      await setDoc(newDocRef, { ...updatedData, id });
+      console.log(`Created user in ${newRole} collection`);
+
+      // Fetch updated user data
+      await fetchUserData();
+      console.log("User updated successfully");
     } catch (error) {
-      console.error("Error updating/creating user:", error);
+      console.error("Error updating user:", error);
       throw error;
     }
   };

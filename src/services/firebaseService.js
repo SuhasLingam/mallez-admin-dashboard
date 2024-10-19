@@ -7,6 +7,7 @@ export const addNewUser = async (userData, role) => {
   const usersRef = collection(db, "platform_users", role, role);
   const newDocRef = doc(usersRef);
   await setDoc(newDocRef, { ...userData, id: newDocRef.id });
+  return newDocRef.id;
 };
 
 export const deleteUser = async (userId, userRole) => {

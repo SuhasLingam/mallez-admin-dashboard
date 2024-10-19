@@ -8,6 +8,8 @@ import {
   setDoc,
   collection,
   getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 import { db, addNewUser, deleteUser } from "../services/firebaseService";
 
@@ -47,10 +49,12 @@ const useUserManagement = (userRole, currentUserEmail, updateUser) => {
         }));
         allUsers = [...allUsers, ...users];
         console.log(`Found ${users.length} users in ${role} collection`);
+        users.forEach((user) => console.log(`- ${user.email} (${user.role})`));
       }
 
       setDisplayUsers(allUsers);
       console.log("Total users:", allUsers.length);
+      console.log("All users:", allUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast.error("Failed to fetch users");
@@ -112,15 +116,36 @@ const useUserManagement = (userRole, currentUserEmail, updateUser) => {
     setIsLoading(true);
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, userData.role, userData);
+        const oldRole = editingUser.role;
+        const updatedUserData = {
+          ...editingUser,
+          ...userData,
+          role: userData.role || editingUser.role,
+        };
+        await updateUser(editingUser.id, oldRole, updatedUserData);
         toast.success("User updated successfully");
       } else {
+        // Check if a user with the same email already exists in any role
+        const roles = ["admin", "mallOwner", "user"];
+        for (const role of roles) {
+          const querySnapshot = await getDocs(
+            query(
+              collection(db, "platform_users", role, role),
+              where("email", "==", userData.email)
+            )
+          );
+          if (!querySnapshot.empty) {
+            throw new Error(
+              `A user with this email already exists as a ${role}`
+            );
+          }
+        }
         await addNewUser(userData, userData.role);
         toast.success("New user added successfully");
       }
       setIsModalOpen(false);
       setEditingUser(null);
-      refreshUserLists();
+      await refreshUserLists();
     } catch (error) {
       console.error("Error submitting user data:", error);
       toast.error(
