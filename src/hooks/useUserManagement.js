@@ -1,5 +1,15 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import {
+  getDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  setDoc,
+  collection,
+  getDocs,
+} from "firebase/firestore";
+import { db } from "../services/firebaseService"; // Make sure this import is correct
 
 const useUserManagement = (
   adminData,
@@ -86,7 +96,7 @@ const useUserManagement = (
     setIsLoading(true);
     try {
       if (editingUser) {
-        await updateUser(editingUser.id, editingUser.role, editingUser);
+        await updateUserWithRoleChange(editingUser);
         toast.success("User updated successfully");
       } else {
         await addNewUser(
@@ -103,10 +113,64 @@ const useUserManagement = (
       setNewUser({ role: "user", vehicleNumbers: [""] });
     } catch (error) {
       console.error("Error saving user:", error);
-      toast.error("Failed to save user");
+      toast.error(`Failed to save user: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const updateUserWithRoleChange = async (updatedUser) => {
+    const { id, role, ...userData } = updatedUser;
+    const collections = ["users", "admins", "mallOwners"];
+    let oldCollection = null;
+    let userDoc = null;
+
+    // Find the user in one of the collections
+    for (const collectionName of collections) {
+      const docRef = doc(db, collectionName, id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        oldCollection = collectionName;
+        userDoc = docSnap;
+        break;
+      }
+    }
+
+    if (!userDoc) {
+      throw new Error("User not found in any collection");
+    }
+
+    const newCollection =
+      role === "admin"
+        ? "admins"
+        : role === "mallOwner"
+        ? "mallOwners"
+        : "users";
+
+    if (oldCollection !== newCollection) {
+      // Role has changed, move the user to the new collection
+      await setDoc(doc(db, newCollection, id), { id, role, ...userData });
+      await deleteDoc(doc(db, oldCollection, id));
+    } else {
+      // Role hasn't changed, update in the same collection
+      await updateDoc(doc(db, oldCollection, id), { role, ...userData });
+    }
+
+    // Refresh the user lists
+    await refreshUserLists();
+  };
+
+  const refreshUserLists = async () => {
+    const fetchUsers = async (collectionName) => {
+      const querySnapshot = await getDocs(collection(db, collectionName));
+      return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    };
+
+    const newAdminData = await fetchUsers("admins");
+    const newMallOwnerData = await fetchUsers("mallOwners");
+    const newUserData = await fetchUsers("users");
+
+    setDisplayUsers([...newAdminData, ...newMallOwnerData, ...newUserData]);
   };
 
   const handleEdit = (user) => {
@@ -180,6 +244,7 @@ const useUserManagement = (
     setIsModalOpen,
     setCurrentPage,
     handleSearchAndFilter,
+    refreshUserLists,
   };
 };
 

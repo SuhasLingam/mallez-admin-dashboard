@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { FaUserPlus } from "react-icons/fa";
 import UserTable from "./UserTable";
 import UserForm from "./UserForm";
@@ -42,6 +42,7 @@ const Users = ({
     setIsModalOpen,
     setCurrentPage,
     handleSearchAndFilter,
+    refreshUserLists,
   } = useUserManagement(
     adminData,
     mallOwnerData,
@@ -56,6 +57,10 @@ const Users = ({
   const indexOfLastUser = currentPage * usersPerPage;
   const indexOfFirstUser = indexOfLastUser - usersPerPage;
   const currentUsers = displayUsers.slice(indexOfFirstUser, indexOfLastUser);
+
+  useEffect(() => {
+    refreshUserLists();
+  }, []);
 
   return (
     <div className="container px-4 py-8 mx-auto">
