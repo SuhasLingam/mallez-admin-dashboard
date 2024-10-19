@@ -48,15 +48,10 @@ const useUserManagement = (userRole, currentUserEmail, updateUser) => {
           role,
         }));
         allUsers = [...allUsers, ...users];
-        console.log(`Found ${users.length} users in ${role} collection`);
-        users.forEach((user) => console.log(`- ${user.email} (${user.role})`));
       }
 
       setDisplayUsers(allUsers);
-      console.log("Total users:", allUsers.length);
-      console.log("All users:", allUsers);
     } catch (error) {
-      console.error("Error fetching users:", error);
       toast.error("Failed to fetch users");
     } finally {
       setIsLoading(false);
@@ -223,23 +218,17 @@ const useUserManagement = (userRole, currentUserEmail, updateUser) => {
     if (editingUser && editingUser.id && editingUser.role) {
       setIsLoading(true);
       try {
-        console.log("Confirming delete for user:", editingUser);
         await deleteUser(editingUser.id, editingUser.role);
         toast.success("User deleted successfully");
         setIsDeleteModalOpen(false);
         setEditingUser(null);
         refreshUserLists();
       } catch (error) {
-        console.error("Error in confirmDelete:", error);
         toast.error(`Failed to delete user: ${error.message}`);
       } finally {
         setIsLoading(false);
       }
     } else {
-      console.error(
-        "Attempted to delete user, but user data is incomplete",
-        editingUser
-      );
       toast.error("Cannot delete user: Incomplete user data");
     }
   };

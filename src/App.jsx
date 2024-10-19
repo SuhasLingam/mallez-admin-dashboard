@@ -268,14 +268,9 @@ function App() {
     try {
       const newRole = updatedData.role;
 
-      console.log(
-        `Updating user: ID=${id}, Old Role=${oldRole}, New Role=${newRole}`
-      );
-
       // Delete the old document
       const oldDocRef = doc(db, "platform_users", oldRole, oldRole, id);
       await deleteDoc(oldDocRef);
-      console.log(`Deleted user from ${oldRole} collection`);
 
       // Check if a user with the same email already exists in any role
       const roles = ["admin", "mallOwner", "user"];
@@ -293,7 +288,6 @@ function App() {
             await deleteDoc(
               doc(db, "platform_users", role, role, existingDoc.id)
             );
-            console.log(`Deleted duplicate user from ${role} collection`);
           }
         }
       }
@@ -301,13 +295,10 @@ function App() {
       // Create a new document in the new role's collection
       const newDocRef = doc(db, "platform_users", newRole, newRole, id);
       await setDoc(newDocRef, { ...updatedData, id });
-      console.log(`Created user in ${newRole} collection`);
 
       // Fetch updated user data
       await fetchUserData();
-      console.log("User updated successfully");
     } catch (error) {
-      console.error("Error updating user:", error);
       throw error;
     }
   };
@@ -331,16 +322,13 @@ function App() {
 
   const createNewUser = async (userData) => {
     if (userRole !== "admin") {
-      console.error("Only admins can create new users");
       return;
     }
 
     try {
-      const docRef = await addDoc(collection(db, "users"), userData);
-      console.log("New user added with ID: ", docRef.id);
+      await addDoc(collection(db, "users"), userData);
       // Optionally, update your UI or state to reflect the new user
     } catch (error) {
-      console.error("Error adding new user: ", error);
       // Handle the error (e.g., show an error message to the user)
     }
   };
@@ -388,9 +376,6 @@ function App() {
         throw new Error(`Invalid user role: ${userRole}`);
       }
 
-      console.log("Updating document:", userDocRef.path);
-      console.log("Data to update:", updatedData);
-
       await updateDoc(userDocRef, updatedData);
 
       // Update local state
@@ -399,10 +384,7 @@ function App() {
       } else if (userRole === "mallOwner") {
         setMallOwnerData([{ ...mallOwnerData[0], ...updatedData }]);
       }
-
-      console.log("Profile updated successfully");
     } catch (error) {
-      console.error("Error updating user profile:", error);
       throw error;
     }
   };

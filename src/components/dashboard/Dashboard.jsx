@@ -45,10 +45,9 @@ const Dashboard = ({ userRole }) => {
       setUserCounts(counts);
       setAllUsers(fetchedUsers);
       setDisplayData(fetchedUsers[selectedUserType] || []);
-      console.log("User counts:", counts);
-      console.log("Display data:", fetchedUsers[selectedUserType]);
     } catch (error) {
-      console.error("Error fetching users:", error);
+      // You might want to add a toast notification here
+      // toast.error("Error fetching users");
     } finally {
       setIsLoading(false);
     }

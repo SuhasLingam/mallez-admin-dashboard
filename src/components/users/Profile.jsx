@@ -26,10 +26,6 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    console.log("Profile component mounted");
-    console.log("userData:", userData);
-    console.log("userRole:", userRole);
-
     if (userData) {
       setEditedData({
         firstName: userData.firstName || "",
@@ -40,14 +36,12 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
       });
       setIsLoading(false);
     } else {
-      console.log("userData is undefined. Waiting for data...");
       setIsLoading(true);
     }
   }, [userData, userRole]);
 
   const fetchAdditionalData = async () => {
     if (!userData?.email) {
-      console.error("User email is not available");
       toast.error("Failed to fetch additional profile data.");
       return;
     }
@@ -73,21 +67,13 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
         );
       }
 
-      console.log(
-        `Fetching data for ${userRole} with email: ${userData.email}`
-      );
-      console.log("Document reference:", docRef.path);
-
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        console.log("Document data:", docSnap.data());
         setEditedData((prevData) => ({ ...prevData, ...docSnap.data() }));
       } else {
-        console.log("No such document!");
         toast.error("User profile data not found.");
       }
     } catch (error) {
-      console.error("Error fetching additional data:", error);
       toast.error("Failed to fetch additional profile data.");
     }
   };
@@ -127,13 +113,11 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
       // Remove address from editedData
       const { address, ...dataToUpdate } = editedData;
 
-      console.log("Updating user profile with:", dataToUpdate);
       await updateUserProfile(dataToUpdate);
 
       setIsEditing(false);
       toast.success("Profile updated successfully!");
     } catch (error) {
-      console.error("Error updating profile:", error);
       toast.error(`Failed to update profile: ${error.message}`);
     }
   };
