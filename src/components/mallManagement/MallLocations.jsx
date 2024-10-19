@@ -226,7 +226,8 @@ const MallLocations = ({ userRole }) => {
     }
   };
 
-  const handleAssignMallOwner = () => {
+  const handleAssignMallOwner = (locationId) => {
+    setSelectedLocationId(locationId);
     setShowAssignModal(true);
   };
 
@@ -236,12 +237,14 @@ const MallLocations = ({ userRole }) => {
       return;
     }
 
-    if (selectedLocations.length === 0) {
-      toast.error("Please select at least one location");
-      return;
-    }
-
     try {
+      const locationRef = doc(
+        db,
+        `mallChains/${mallChainId}/locations`,
+        selectedLocationId
+      );
+      await updateDoc(locationRef, { mallOwnerId: selectedMallOwner.id });
+
       const mallOwnerRef = doc(
         db,
         `platform_users/mallOwner/mallOwner/${selectedMallOwner.id}`
@@ -252,10 +255,7 @@ const MallLocations = ({ userRole }) => {
 
       const updatedAssignedLocations = [
         ...existingAssignedLocations,
-        ...selectedLocations.map((locationId) => ({
-          locationId,
-          mallChainId,
-        })),
+        { locationId: selectedLocationId, mallChainId },
       ];
 
       await updateDoc(mallOwnerRef, {
@@ -263,19 +263,9 @@ const MallLocations = ({ userRole }) => {
         role: "mallOwner",
       });
 
-      // Update each location with the mall owner's ID
-      for (const locationId of selectedLocations) {
-        const locationRef = doc(
-          db,
-          `mallChains/${mallChainId}/locations`,
-          locationId
-        );
-        await updateDoc(locationRef, { mallOwnerId: selectedMallOwner.id });
-      }
-
       toast.success("Mall owner assigned successfully");
       setShowAssignModal(false);
-      setSelectedLocations([]);
+      setSelectedLocationId(null);
       setSelectedMallOwner(null);
       fetchMallChainAndLocations();
     } catch (error) {
@@ -380,39 +370,49 @@ const MallLocations = ({ userRole }) => {
     }
   };
 
+  const toggleLocationSelection = (locationId) => {
+    setSelectedLocations((prev) =>
+      prev.includes(locationId)
+        ? prev.filter((id) => id !== locationId)
+        : [...prev, locationId]
+    );
+  };
+
   if (isLoading) {
     return <div className="mt-8 text-center">Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="max-w-7xl container px-4 py-8 mx-auto">
       <nav className="flex mb-8" aria-label="Breadcrumb">
-        <ol className="inline-flex items-center space-x-1 md:space-x-3">
+        <ol className="md:space-x-3 inline-flex items-center space-x-1">
           <li className="inline-flex items-center">
             <Link
               to="/mall-chains"
-              className="text-gray-700 hover:text-blue-600"
+              className="hover:text-blue-600 font-medium text-gray-700"
             >
               Mall Chains
             </Link>
           </li>
           <FaChevronRight className="mx-2 text-gray-500" />
           <li className="inline-flex items-center">
-            <span className="text-gray-500">{mallChain?.title}</span>
+            <span className="font-medium text-gray-500">
+              {mallChain?.title}
+            </span>
           </li>
         </ol>
       </nav>
 
-      <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">
+      <h1 className="mb-8 text-3xl font-bold text-center text-gray-800">
         {mallChain?.title} - Locations
       </h1>
 
       {userRole === "admin" && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-2xl font-semibold mb-4 text-gray-700">
+        <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
+          <h2 className="mb-4 text-2xl font-semibold text-gray-700">
             Add New Location
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:grid-cols-2 grid grid-cols-1 gap-4">
             <input
               type="text"
               value={newLocation.name}
@@ -420,7 +420,7 @@ const MallLocations = ({ userRole }) => {
                 setNewLocation({ ...newLocation, name: e.target.value })
               }
               placeholder="Location name"
-              className="p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-2 focus:ring-blue-500 focus:outline-none p-2 border rounded"
             />
             <input
               type="text"
@@ -429,7 +429,7 @@ const MallLocations = ({ userRole }) => {
                 setNewLocation({ ...newLocation, imageUrl: e.target.value })
               }
               placeholder="Image URL"
-              className="p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="focus:ring-2 focus:ring-blue-500 focus:outline-none p-2 border rounded"
             />
             <div className="flex items-center space-x-2">
               <input
@@ -441,7 +441,7 @@ const MallLocations = ({ userRole }) => {
               />
               <button
                 onClick={() => fileInputRef.current.click()}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300 flex items-center"
+                className="hover:bg-blue-600 flex items-center px-4 py-2 text-white transition duration-300 bg-blue-500 rounded"
               >
                 <FaUpload className="mr-2" /> Choose Image
               </button>
@@ -451,7 +451,7 @@ const MallLocations = ({ userRole }) => {
             </div>
             <button
               onClick={handleAddLocation}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
+              className="hover:bg-green-600 flex items-center justify-center px-4 py-2 text-white transition duration-300 bg-green-500 rounded"
             >
               <FaPlus className="mr-2" /> Add Location
             </button>
@@ -459,33 +459,40 @@ const MallLocations = ({ userRole }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="md:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-6">
         {locations.map((location) => (
           <div
             key={location.id}
-            className="bg-white rounded-lg shadow-md overflow-hidden"
+            className={`bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 ${
+              selectedLocations.includes(location.id)
+                ? "ring-2 ring-blue-500"
+                : ""
+            }`}
+            onClick={() =>
+              userRole === "admin" && toggleLocationSelection(location.id)
+            }
           >
             <div className="relative h-48">
               {location.imageUrl ? (
                 <img
                   src={location.imageUrl}
                   alt={location.name}
-                  className="w-full h-full object-cover"
+                  className="object-cover w-full h-full"
                 />
               ) : (
-                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                  <FaBuilding className="text-gray-400 text-4xl" />
+                <div className="flex items-center justify-center w-full h-full bg-gray-200">
+                  <FaBuilding className="text-4xl text-gray-400" />
                 </div>
               )}
-              <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4">
+              <div className="bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0 p-4">
                 <h3 className="text-xl font-semibold text-white">
                   {location.name}
                 </h3>
               </div>
             </div>
             <div className="p-4">
-              <p className="mb-2 text-gray-600">
-                <FaMapMarkerAlt className="inline-block mr-2" />
+              <p className="flex items-center mb-2 text-gray-600">
+                <FaMapMarkerAlt className="mr-2" />
                 {location.address || "Address not available"}
               </p>
               <div className="flex justify-between mb-4">
@@ -504,68 +511,64 @@ const MallLocations = ({ userRole }) => {
               </div>
               <Link
                 to={`/mall/${mallChainId}/location/${location.id}`}
-                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300 inline-block mb-2 w-full text-center"
+                className="hover:bg-blue-600 inline-block w-full px-4 py-2 mb-2 text-center text-white transition duration-300 bg-blue-500 rounded"
               >
                 View Details
               </Link>
               {userRole === "admin" && (
-                <div className="flex flex-col space-y-2 mt-2">
+                <div className="flex flex-col mt-2 space-y-2">
                   <div className="flex justify-between">
                     <button
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         handleUpdateLocation(location.id, {
                           ...location,
                           name: prompt("Enter new name", location.name),
-                        })
-                      }
-                      className="text-blue-500 hover:text-blue-700 transition duration-300"
+                        });
+                      }}
+                      className="hover:text-blue-700 text-blue-500 transition duration-300"
                     >
                       <FaEdit className="inline mr-1" /> Edit
                     </button>
                     <button
-                      onClick={() => handleEditImage(location.id)}
-                      className="text-green-500 hover:text-green-700 transition duration-300"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditImage(location.id);
+                      }}
+                      className="hover:text-green-700 text-green-500 transition duration-300"
                     >
                       <FaImage className="inline mr-1" /> Edit Image
                     </button>
                     <button
-                      onClick={() => handleDeleteLocation(location.id)}
-                      className="text-red-500 hover:text-red-700 transition duration-300"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteLocation(location.id);
+                      }}
+                      className="hover:text-red-700 text-red-500 transition duration-300"
                     >
                       <FaTrash className="inline mr-1" /> Delete
                     </button>
                   </div>
                   <div className="flex justify-between">
                     <button
-                      onClick={() => handleAssignMallOwner(location.id)}
-                      className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAssignMallOwner(location.id);
+                      }}
+                      className="hover:bg-green-600 flex items-center justify-center px-3 py-1 text-white transition duration-300 bg-green-500 rounded"
                     >
                       <FaUserPlus className="mr-1" /> Assign
                     </button>
                     <button
-                      onClick={() => handleUnassignMallOwner(location.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition duration-300 flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUnassignMallOwner(location.id);
+                      }}
+                      className="hover:bg-red-600 flex items-center justify-center px-3 py-1 text-white transition duration-300 bg-red-500 rounded"
                     >
                       <FaUserMinus className="mr-1" /> Unassign
                     </button>
                   </div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedLocations.includes(location.id)}
-                      onChange={() => {
-                        setSelectedLocations((prev) =>
-                          prev.includes(location.id)
-                            ? prev.filter((id) => id !== location.id)
-                            : [...prev, location.id]
-                        );
-                      }}
-                      className="form-checkbox h-5 w-5 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">
-                      Select for assignment
-                    </span>
-                  </label>
                 </div>
               )}
               {assignedMallOwners[location.id] && (
@@ -580,22 +583,22 @@ const MallLocations = ({ userRole }) => {
         ))}
       </div>
 
-      {userRole === "admin" && (
-        <div className="mt-8">
+      {userRole === "admin" && selectedLocations.length > 0 && (
+        <div className="bottom-8 left-1/2 fixed transform -translate-x-1/2">
           <button
             onClick={handleAssignMallOwner}
-            className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition duration-300 flex items-center justify-center mx-auto"
-            disabled={selectedLocations.length === 0}
+            className="hover:bg-blue-600 flex items-center justify-center px-6 py-3 text-white transition duration-300 bg-blue-500 rounded-full shadow-lg"
           >
             <FaUserPlus className="mr-2" />
-            Assign Selected Locations to Mall Owner
+            Assign {selectedLocations.length} Location
+            {selectedLocations.length > 1 ? "s" : ""}
           </button>
         </div>
       )}
 
       {showAssignModal && (
         <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="sm:block sm:p-0 flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center">
             <div
               className="fixed inset-0 transition-opacity"
               aria-hidden="true"
@@ -603,13 +606,13 @@ const MallLocations = ({ userRole }) => {
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
             <span
-              className="hidden sm:inline-block sm:align-middle sm:h-screen"
+              className="sm:inline-block sm:align-middle sm:h-screen hidden"
               aria-hidden="true"
             >
               &#8203;
             </span>
-            <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="px-4 pt-5 pb-4 bg-white sm:p-6 sm:pb-4">
+            <div className="sm:my-8 sm:align-middle sm:max-w-lg sm:w-full inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl">
+              <div className="sm:p-6 sm:pb-4 px-4 pt-5 pb-4 bg-white">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">
                   Assign Mall Owner
                 </h3>
@@ -632,17 +635,17 @@ const MallLocations = ({ userRole }) => {
                   </select>
                 </div>
               </div>
-              <div className="px-4 py-3 bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm"
                   onClick={assignMallOwner}
                 >
                   Assign
                 </button>
                 <button
                   type="button"
-                  className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm"
                   onClick={() => setShowAssignModal(false)}
                 >
                   Cancel
@@ -654,7 +657,7 @@ const MallLocations = ({ userRole }) => {
       )}
       {editImageLocationId && (
         <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div className="sm:block sm:p-0 flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center">
             <div
               className="fixed inset-0 transition-opacity"
               aria-hidden="true"
@@ -662,13 +665,13 @@ const MallLocations = ({ userRole }) => {
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
             <span
-              className="hidden sm:inline-block sm:align-middle sm:h-screen"
+              className="sm:inline-block sm:align-middle sm:h-screen hidden"
               aria-hidden="true"
             >
               &#8203;
             </span>
-            <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="px-4 pt-5 pb-4 bg-white sm:p-6 sm:pb-4">
+            <div className="sm:my-8 sm:align-middle sm:max-w-lg sm:w-full inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl">
+              <div className="sm:p-6 sm:pb-4 px-4 pt-5 pb-4 bg-white">
                 <h3 className="text-lg font-medium leading-6 text-gray-900">
                   Edit Location Image
                 </h3>
@@ -681,17 +684,17 @@ const MallLocations = ({ userRole }) => {
                   />
                 </div>
               </div>
-              <div className="px-4 py-3 bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse px-4 py-3">
                 <button
                   type="button"
-                  className="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm"
                   onClick={handleUpdateLocationImage}
                 >
                   Update Image
                 </button>
                 <button
                   type="button"
-                  className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm"
                   onClick={() => setEditImageLocationId(null)}
                 >
                   Cancel
