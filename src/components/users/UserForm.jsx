@@ -10,6 +10,11 @@ const UserForm = ({
   onAddVehicleNumber,
   onRemoveVehicleNumber,
 }) => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(user);
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
@@ -17,7 +22,7 @@ const UserForm = ({
           <h3 className="text-lg leading-6 font-medium text-gray-900">
             {user.id ? "Edit User" : "Add New User"}
           </h3>
-          <form onSubmit={onSubmit} className="mt-2 text-left">
+          <form onSubmit={handleSubmit} className="mt-2 text-left">
             <div className="mb-4">
               <label
                 className="block text-gray-700 text-sm font-bold mb-2"
@@ -75,15 +80,14 @@ const UserForm = ({
               </label>
               <select
                 name="role"
-                value={user.role || ""}
+                value={user.role || "user"}
                 onChange={onInputChange}
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 required
               >
-                <option value="">Select a role</option>
+                <option value="user">User</option>
                 <option value="admin">Admin</option>
                 <option value="mallOwner">Mall Owner</option>
-                <option value="user">User</option>
               </select>
             </div>
             {user.role === "user" && (
@@ -91,26 +95,25 @@ const UserForm = ({
                 <label className="block text-gray-700 text-sm font-bold mb-2">
                   Vehicle Numbers
                 </label>
-                {user.vehicleNumbers &&
-                  user.vehicleNumbers.map((vn, index) => (
-                    <div key={index} className="flex mb-2">
-                      <input
-                        type="text"
-                        value={vn || ""}
-                        onChange={(e) =>
-                          onVehicleNumberChange(index, e.target.value)
-                        }
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => onRemoveVehicleNumber(index)}
-                        className="ml-2 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  ))}
+                {(user.vehicleNumbers || []).map((vn, index) => (
+                  <div key={index} className="flex mb-2">
+                    <input
+                      type="text"
+                      value={vn || ""}
+                      onChange={(e) =>
+                        onVehicleNumberChange(index, e.target.value)
+                      }
+                      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onRemoveVehicleNumber(index)}
+                      className="ml-2 bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      <FaTimes />
+                    </button>
+                  </div>
+                ))}
                 <button
                   type="button"
                   onClick={onAddVehicleNumber}

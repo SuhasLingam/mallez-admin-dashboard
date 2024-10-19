@@ -7,16 +7,7 @@ import Pagination from "../common/Pagination";
 import ConfirmationModal from "../common/ConfirmationModal";
 import useUserManagement from "../../hooks/useUserManagement";
 
-const Users = ({
-  adminData,
-  mallOwnerData,
-  userData,
-  userRole,
-  addNewUser,
-  updateUser,
-  deleteUser,
-  currentUserEmail,
-}) => {
+const Users = ({ userRole, currentUserEmail }) => {
   const {
     displayUsers,
     newUser,
@@ -43,24 +34,41 @@ const Users = ({
     setCurrentPage,
     handleSearchAndFilter,
     refreshUserLists,
-  } = useUserManagement(
-    adminData,
-    mallOwnerData,
-    userData,
-    userRole,
-    currentUserEmail,
-    addNewUser,
-    updateUser,
-    deleteUser
-  );
-
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = displayUsers.slice(indexOfFirstUser, indexOfLastUser);
+  } = useUserManagement(userRole, currentUserEmail);
 
   useEffect(() => {
     refreshUserLists();
   }, []);
+
+  const filteredUsers = displayUsers.filter((user) => {
+    if (filterRole !== "all" && user.role !== filterRole) return false;
+    return (
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.vehicleNumbers &&
+        user.vehicleNumbers.some((vn) =>
+          vn.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
+    );
+  });
+
+  const sortedUsers = [...filteredUsers].sort((a, b) => {
+    if (sortBy === "name") {
+      return sortOrder === "asc"
+        ? a.firstName.localeCompare(b.firstName)
+        : b.firstName.localeCompare(a.firstName);
+    } else if (sortBy === "email") {
+      return sortOrder === "asc"
+        ? a.email.localeCompare(b.email)
+        : b.email.localeCompare(a.email);
+    }
+    return 0;
+  });
+
+  const indexOfLastUser = currentPage * usersPerPage;
+  const indexOfFirstUser = indexOfLastUser - usersPerPage;
+  const currentUsers = sortedUsers.slice(indexOfFirstUser, indexOfLastUser);
 
   return (
     <div className="container px-4 py-8 mx-auto">
@@ -103,7 +111,7 @@ const Users = ({
           )}
           <Pagination
             currentPage={currentPage}
-            totalUsers={displayUsers.length}
+            totalUsers={sortedUsers.length}
             usersPerPage={usersPerPage}
             onPageChange={setCurrentPage}
           />

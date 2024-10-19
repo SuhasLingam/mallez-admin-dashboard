@@ -4,113 +4,64 @@ import { db } from "../../services/firebaseService";
 import { FaUsers, FaUserTie, FaUserShield, FaSearch } from "react-icons/fa";
 
 const Dashboard = ({ userRole }) => {
-  const [selectedUserType, setSelectedUserType] = useState(
-    userRole === "admin" ? "users" : "users"
-  );
-  const [adminData, setAdminData] = useState([]);
-  const [mallOwnerData, setMallOwnerData] = useState([]);
-  const [userData, setUserData] = useState([]);
+  const [selectedUserType, setSelectedUserType] = useState("user");
   const [displayData, setDisplayData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [userCounts, setUserCounts] = useState({
+    user: 0,
+    admin: 0,
+    mallOwner: 0,
+  });
 
   useEffect(() => {
     fetchData();
-  }, [selectedUserType]);
-
-  useEffect(() => {
-    filterData();
-  }, [searchTerm, selectedUserType, adminData, mallOwnerData, userData]);
+  }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      if (userRole === "admin") {
-        const adminSnapshot = await getDocs(collection(db, "admins"));
-        const adminData = adminSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setAdminData(adminData);
+      const roles = ["user", "admin", "mallOwner"];
+      let allUsers = {};
+      let counts = { user: 0, admin: 0, mallOwner: 0 };
 
-        const mallOwnerSnapshot = await getDocs(collection(db, "mallOwners"));
-        const mallOwnerData = mallOwnerSnapshot.docs.map((doc) => ({
+      for (const role of roles) {
+        const usersCollection = collection(db, "platform_users", role, role);
+        const querySnapshot = await getDocs(usersCollection);
+        const users = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
+          role,
         }));
-        setMallOwnerData(mallOwnerData);
-
-        const userSnapshot = await getDocs(collection(db, "users"));
-        const userData = userSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setUserData(userData);
-
-        switch (selectedUserType) {
-          case "admins":
-            setDisplayData(adminData);
-            break;
-          case "mallOwners":
-            setDisplayData(mallOwnerData);
-            break;
-          case "users":
-            setDisplayData(userData);
-            break;
-          default:
-            setDisplayData([]);
-        }
-      } else if (userRole === "mallOwner") {
-        const userSnapshot = await getDocs(collection(db, "users"));
-        const userData = userSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setUserData(userData);
-        setDisplayData(userData);
+        allUsers[role] = users;
+        counts[role] = users.length;
       }
+
+      setUserCounts(counts);
+      setDisplayData(allUsers[selectedUserType] || []);
+      console.log("User counts:", counts);
+      console.log("Display data:", allUsers[selectedUserType]);
     } catch (error) {
-      // Error handling could be improved here, e.g., setting an error state
+      console.error("Error fetching users:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const filterData = () => {
-    let dataToFilter = [];
-    switch (selectedUserType) {
-      case "admins":
-        dataToFilter = adminData;
-        break;
-      case "mallOwners":
-        dataToFilter = mallOwnerData;
-        break;
-      case "users":
-        dataToFilter = userData;
-        break;
-      default:
-        dataToFilter = [];
-    }
-
-    const filteredData = dataToFilter.filter((item) => {
-      const searchString = searchTerm.toLowerCase();
-      return (
-        item.email.toLowerCase().includes(searchString) ||
-        item.firstName.toLowerCase().includes(searchString) ||
-        item.lastName.toLowerCase().includes(searchString) ||
-        (item.vehicleNumbers &&
-          item.vehicleNumbers.some((vn) =>
-            vn.toLowerCase().includes(searchString)
-          ))
-      );
-    });
-
-    setDisplayData(filteredData);
-  };
-
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
   };
+
+  const filteredUsers = displayData.filter(
+    (user) =>
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.vehicleNumbers &&
+        user.vehicleNumbers.some((vn) =>
+          vn.toLowerCase().includes(searchTerm.toLowerCase())
+        ))
+  );
 
   const renderSearchBar = () => (
     <div className="mb-4">
@@ -143,7 +94,7 @@ const Dashboard = ({ userRole }) => {
             <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
               Last Name
             </th>
-            {selectedUserType === "users" && (
+            {selectedUserType === "user" && (
               <th className="px-5 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase bg-gray-100 border-b-2 border-gray-200">
                 Vehicle Numbers
               </th>
@@ -162,7 +113,7 @@ const Dashboard = ({ userRole }) => {
               <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                 {item.lastName}
               </td>
-              {selectedUserType === "users" && (
+              {selectedUserType === "user" && (
                 <td className="px-5 py-5 text-sm bg-white border-b border-gray-200">
                   {item.vehicleNumbers && item.vehicleNumbers.length > 0 ? (
                     <ul className="list-disc list-inside">
@@ -191,7 +142,7 @@ const Dashboard = ({ userRole }) => {
         Select User Type:
       </label>
       <div className="flex space-x-4">
-        {["users", "admins", "mallOwners"].map((type) => (
+        {["user", "admin", "mallOwner"].map((type) => (
           <button
             key={type}
             onClick={() => setSelectedUserType(type)}
@@ -201,9 +152,9 @@ const Dashboard = ({ userRole }) => {
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
             }`}
           >
-            {type === "users" && <FaUsers className="mr-2" />}
-            {type === "admins" && <FaUserShield className="mr-2" />}
-            {type === "mallOwners" && <FaUserTie className="mr-2" />}
+            {type === "user" && <FaUsers className="mr-2" />}
+            {type === "admin" && <FaUserShield className="mr-2" />}
+            {type === "mallOwner" && <FaUserTie className="mr-2" />}
             {type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
@@ -217,21 +168,21 @@ const Dashboard = ({ userRole }) => {
         <FaUserShield className="mr-4 text-3xl text-purple-500" />
         <div>
           <h4 className="text-lg font-semibold">Admins</h4>
-          <p className="text-2xl font-bold">{adminData.length}</p>
+          <p className="text-2xl font-bold">{userCounts.admin}</p>
         </div>
       </div>
       <div className="flex items-center p-4 bg-white rounded-lg shadow-md">
         <FaUserTie className="mr-4 text-3xl text-green-500" />
         <div>
           <h4 className="text-lg font-semibold">Mall Owners</h4>
-          <p className="text-2xl font-bold">{mallOwnerData.length}</p>
+          <p className="text-2xl font-bold">{userCounts.mallOwner}</p>
         </div>
       </div>
       <div className="flex items-center p-4 bg-white rounded-lg shadow-md">
         <FaUsers className="mr-4 text-3xl text-blue-500" />
         <div>
-          <h4 className="text-lg font-semibold">Total Users</h4>
-          <p className="text-2xl font-bold">{userData.length}</p>
+          <h4 className="text-lg font-semibold">Users</h4>
+          <p className="text-2xl font-bold">{userCounts.user}</p>
         </div>
       </div>
     </div>
@@ -246,17 +197,16 @@ const Dashboard = ({ userRole }) => {
       <div className="overflow-hidden bg-white rounded-lg shadow-lg">
         <div className="p-6">
           <h3 className="mb-4 text-xl font-semibold text-gray-800">
-            {userRole === "admin"
-              ? selectedUserType.charAt(0).toUpperCase() +
-                selectedUserType.slice(1)
-              : "Users"}
+            {selectedUserType.charAt(0).toUpperCase() +
+              selectedUserType.slice(1)}
+            s
           </h3>
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin w-12 h-12 border-b-2 border-gray-900 rounded-full"></div>
             </div>
           ) : (
-            renderUserTable(displayData)
+            renderUserTable(filteredUsers)
           )}
         </div>
       </div>
