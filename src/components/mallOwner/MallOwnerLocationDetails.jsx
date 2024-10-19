@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   doc,
   getDoc,
@@ -35,15 +35,11 @@ const MallOwnerLocationDetails = () => {
     setIsLoading(true);
     try {
       if (!auth.currentUser) {
-        console.error("No authenticated user found");
         toast.error("You must be logged in to access this page");
         navigate("/login");
         return;
       }
 
-      console.log("Current user ID:", auth.currentUser.uid);
-
-      // Try to fetch the mall owner document by email
       const mallOwnersRef = collection(
         db,
         "platform_users/mallOwner/mallOwner"
@@ -54,22 +50,18 @@ const MallOwnerLocationDetails = () => {
       );
       const querySnapshot = await getDocs(q);
 
-      let userData;
-      if (!querySnapshot.empty) {
-        userData = {
-          id: querySnapshot.docs[0].id,
-          ...querySnapshot.docs[0].data(),
-        };
-        console.log("User data found by email:", userData);
-      } else {
-        console.error("User document not found");
+      if (querySnapshot.empty) {
         toast.error("User data not found. Please contact an administrator.");
         navigate("/mall-owner");
         return;
       }
 
+      const userData = {
+        id: querySnapshot.docs[0].id,
+        ...querySnapshot.docs[0].data(),
+      };
+
       if (userData.role !== "mallOwner") {
-        console.error("User is not a mall owner");
         toast.error("You don't have mall owner permissions");
         navigate("/");
         return;
@@ -77,7 +69,6 @@ const MallOwnerLocationDetails = () => {
 
       const { assignedLocationId, assignedMallChainId } = userData;
       if (assignedLocationId !== locationId) {
-        console.error("User does not have access to this location");
         toast.error("You don't have access to this location");
         navigate("/mall-owner");
         return;
@@ -93,7 +84,6 @@ const MallOwnerLocationDetails = () => {
           mallChainId: assignedMallChainId,
         });
       } else {
-        console.error("Location not found");
         toast.error("Location not found");
         navigate("/mall-owner");
         return;
@@ -119,7 +109,6 @@ const MallOwnerLocationDetails = () => {
         mallOffersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
       );
     } catch (error) {
-      console.error("Error fetching location details:", error);
       toast.error("Failed to fetch location details");
     } finally {
       setIsLoading(false);
@@ -139,7 +128,6 @@ const MallOwnerLocationDetails = () => {
       setNewFloorLayout({ name: "" });
       fetchLocationDetails();
     } catch (error) {
-      console.error("Error adding floor layout:", error);
       toast.error("Failed to add floor layout");
     }
   };
@@ -157,7 +145,6 @@ const MallOwnerLocationDetails = () => {
       toast.success("Floor layout updated successfully");
       fetchLocationDetails();
     } catch (error) {
-      console.error("Error updating floor layout:", error);
       toast.error("Failed to update floor layout");
     }
   };
@@ -175,7 +162,6 @@ const MallOwnerLocationDetails = () => {
         toast.success("Floor layout deleted successfully");
         fetchLocationDetails();
       } catch (error) {
-        console.error("Error deleting floor layout:", error);
         toast.error("Failed to delete floor layout");
       }
     }
@@ -191,7 +177,6 @@ const MallOwnerLocationDetails = () => {
       await uploadBytes(storageRef, imageFile);
       return await getDownloadURL(storageRef);
     } catch (error) {
-      console.error("Error uploading image:", error);
       toast.error("Failed to upload image");
       return null;
     }
@@ -216,7 +201,6 @@ const MallOwnerLocationDetails = () => {
       setImageFile(null);
       fetchLocationDetails();
     } catch (error) {
-      console.error("Error adding mall offer:", error);
       toast.error("Failed to add mall offer");
     }
   };
@@ -234,23 +218,24 @@ const MallOwnerLocationDetails = () => {
         toast.success("Mall offer deleted successfully");
         fetchLocationDetails();
       } catch (error) {
-        console.error("Error deleting mall offer:", error);
         toast.error("Failed to delete mall offer");
       }
     }
   };
 
   if (isLoading) {
-    return <div className="mt-8 text-center">Loading...</div>;
-  }
-
-  if (!location) {
-    return <div className="mt-8 text-center">Location not found</div>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin w-12 h-12 border-t-2 border-b-2 border-blue-500 rounded-full"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="container px-4 py-8 mx-auto">
-      <h1 className="mb-6 text-3xl font-bold">{location?.name} Details</h1>
+    <div className="container max-w-4xl px-4 py-8 mx-auto">
+      <h1 className="mb-8 text-3xl font-bold text-center">
+        {location?.name} Details
+      </h1>
 
       <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
         <h2 className="mb-4 text-2xl font-semibold">Floor Layouts</h2>
@@ -291,20 +276,20 @@ const MallOwnerLocationDetails = () => {
               setNewFloorLayout({ ...newFloorLayout, name: e.target.value })
             }
             placeholder="New floor layout name"
-            className="flex-grow p-2 border rounded"
+            className="focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow p-2 border rounded"
           />
           <button
             onClick={handleAddFloorLayout}
-            className="hover:bg-green-600 p-2 text-white bg-green-500 rounded"
+            className="hover:bg-green-600 flex items-center p-2 text-white transition duration-300 bg-green-500 rounded"
           >
-            <FaPlus /> Add Floor Layout
+            <FaPlus className="mr-2" /> Add
           </button>
         </div>
       </div>
 
-      <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
+      <div className="p-6 bg-white rounded-lg shadow-md">
         <h2 className="mb-4 text-2xl font-semibold">Mall Offers</h2>
-        <div className="sm:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-4">
+        <div className="sm:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-4 mb-4">
           {mallOffers.map((offer) => (
             <div key={offer.id} className="p-4 border rounded-lg shadow-sm">
               <img
@@ -314,14 +299,14 @@ const MallOwnerLocationDetails = () => {
               />
               <button
                 onClick={() => handleDeleteMallOffer(offer.id)}
-                className="hover:text-red-700 text-red-500"
+                className="hover:text-red-700 flex items-center text-red-500"
               >
-                <FaTrash /> Delete
+                <FaTrash className="mr-1" /> Delete
               </button>
             </div>
           ))}
         </div>
-        <div className="flex mt-4 space-x-2">
+        <div className="sm:flex-row sm:space-y-0 sm:space-x-2 flex flex-col space-y-2">
           <input
             type="text"
             value={newMallOffer.imageUrl}
@@ -329,7 +314,7 @@ const MallOwnerLocationDetails = () => {
               setNewMallOffer({ ...newMallOffer, imageUrl: e.target.value })
             }
             placeholder="New mall offer image URL"
-            className="flex-grow p-2 border rounded"
+            className="focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow p-2 border rounded"
           />
           <input
             type="file"
@@ -339,9 +324,9 @@ const MallOwnerLocationDetails = () => {
           />
           <button
             onClick={handleAddMallOffer}
-            className="hover:bg-green-600 p-2 text-white bg-green-500 rounded"
+            className="hover:bg-green-600 flex items-center justify-center p-2 text-white transition duration-300 bg-green-500 rounded"
           >
-            <FaPlus /> Add Mall Offer
+            <FaPlus className="mr-2" /> Add Offer
           </button>
         </div>
       </div>
