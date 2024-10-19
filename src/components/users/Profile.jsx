@@ -286,11 +286,6 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
               )}
             </div>
           </form>
-          <pre className="p-2 mt-4 bg-gray-100 rounded">
-            <code>
-              {JSON.stringify({ userData, userRole, editedData }, null, 2)}
-            </code>
-          </pre>
         </div>
       </motion.div>
     </div>
