@@ -17,22 +17,20 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
   const navItems = [
     { path: "/", label: "Dashboard", icon: <FaChartBar /> },
     ...(userRole === "admin"
-      ? [{ path: "/users", label: "Users", icon: <FaUsers /> }]
+      ? [
+          { path: "/users", label: "Users", icon: <FaUsers /> },
+          {
+            path: "/mall-chains",
+            label: "Mall Chains",
+            icon: <FaBuilding />,
+          },
+        ]
       : []),
     ...(userRole === "mallOwner"
       ? [
           {
-            path: "/mall-statistics",
-            label: "Mall Statistics",
-            icon: <FaChartBar />,
-          },
-        ]
-      : []),
-    ...(userRole === "admin" || userRole === "mallOwner"
-      ? [
-          {
-            path: "/mall-chains",
-            label: "Mall Chains",
+            path: "/mall-owner",
+            label: "My Location",
             icon: <FaBuilding />,
           },
         ]

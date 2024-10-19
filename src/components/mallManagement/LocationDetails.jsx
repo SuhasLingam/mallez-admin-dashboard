@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   collection,
   getDocs,
@@ -21,13 +21,15 @@ import {
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
-const LocationDetails = () => {
+const LocationDetails = ({ userRole }) => {
   const { mallChainId, locationId } = useParams();
+  const navigate = useNavigate();
   const [mallChain, setMallChain] = useState(null);
   const [location, setLocation] = useState(null);
   const [floorLayouts, setFloorLayouts] = useState([]);
   const [mallOffers, setMallOffers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
 
   const [newFloorLayout, setNewFloorLayout] = useState({ name: "" });
   const [newMallOffer, setNewMallOffer] = useState({ imageUrl: "" });
@@ -36,9 +38,38 @@ const LocationDetails = () => {
   const [imageFile, setImageFile] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
 
-  const fetchLocationDetails = useCallback(async () => {
+  useEffect(() => {
+    fetchLocationDetails();
+  }, [mallChainId, locationId]);
+
+  const fetchLocationDetails = async () => {
     setIsLoading(true);
     try {
+      if (userRole === "admin") {
+        setHasAccess(true);
+      } else if (userRole === "mallOwner") {
+        const userDoc = await getDoc(
+          doc(db, `platform_users/mallOwner/mallOwner/${auth.currentUser.uid}`)
+        );
+        if (userDoc.exists() && userDoc.data().role === "mallOwner") {
+          const { assignedLocationId, assignedMallChainId } = userDoc.data();
+          if (
+            assignedLocationId === locationId &&
+            assignedMallChainId === mallChainId
+          ) {
+            setHasAccess(true);
+          } else {
+            toast.error("You don't have access to this location");
+            navigate("/mall-owner");
+            return;
+          }
+        } else {
+          toast.error("You don't have permission to view this page");
+          navigate("/");
+          return;
+        }
+      }
+
       const mallChainDoc = await getDoc(doc(db, "mallChains", mallChainId));
       if (mallChainDoc.exists()) {
         setMallChain({ id: mallChainDoc.id, ...mallChainDoc.data() });
@@ -54,6 +85,7 @@ const LocationDetails = () => {
         setLocation({ id: locationDoc.id, ...locationDoc.data() });
       } else {
         toast.error("Location not found");
+        navigate(userRole === "admin" ? "/mall-chains" : "/mall-owner");
         return;
       }
 
@@ -82,11 +114,7 @@ const LocationDetails = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [mallChainId, locationId]);
-
-  useEffect(() => {
-    fetchLocationDetails();
-  }, [fetchLocationDetails]);
+  };
 
   const handleAddFloorLayout = useCallback(async () => {
     try {
@@ -311,6 +339,10 @@ const LocationDetails = () => {
         <div className="animate-spin w-32 h-32 border-t-2 border-b-2 border-blue-500 rounded-full"></div>
       </div>
     );
+  }
+
+  if (!hasAccess) {
+    return null; // The navigate in fetchLocationDetails will handle redirection
   }
 
   return (
