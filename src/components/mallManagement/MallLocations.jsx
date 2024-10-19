@@ -68,19 +68,41 @@ const MallLocations = ({ userRole }) => {
       const locationsSnapshot = await getDocs(
         collection(db, `mallChains/${mallChainId}/locations`)
       );
-      setLocations(
-        locationsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+
+      const locationsWithCounts = await Promise.all(
+        locationsSnapshot.docs.map(async (doc) => {
+          const locationData = doc.data();
+          const floorLayoutsSnapshot = await getDocs(
+            collection(
+              db,
+              `mallChains/${mallChainId}/locations/${doc.id}/floorLayout`
+            )
+          );
+          const mallOffersSnapshot = await getDocs(
+            collection(
+              db,
+              `mallChains/${mallChainId}/locations/${doc.id}/MallOffers`
+            )
+          );
+          return {
+            id: doc.id,
+            ...locationData,
+            floorLayoutsCount: floorLayoutsSnapshot.size,
+            activeOffersCount: mallOffersSnapshot.size,
+          };
+        })
       );
+
+      setLocations(locationsWithCounts);
 
       // Fetch assigned mall owners for each location
       const assignedOwnersData = {};
-      for (const location of locationsSnapshot.docs) {
-        const locationData = location.data();
-        if (locationData.mallOwnerId) {
+      for (const location of locationsWithCounts) {
+        if (location.mallOwnerId) {
           const ownerDoc = await getDoc(
             doc(
               db,
-              `platform_users/mallOwner/mallOwner/${locationData.mallOwnerId}`
+              `platform_users/mallOwner/mallOwner/${location.mallOwnerId}`
             )
           );
           if (ownerDoc.exists()) {
@@ -463,7 +485,7 @@ const MallLocations = ({ userRole }) => {
         {locations.map((location) => (
           <div
             key={location.id}
-            className={`bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 ${
+            className={`bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg ${
               selectedLocations.includes(location.id)
                 ? "ring-2 ring-blue-500"
                 : ""
@@ -511,7 +533,7 @@ const MallLocations = ({ userRole }) => {
               </div>
               <Link
                 to={`/mall/${mallChainId}/location/${location.id}`}
-                className="hover:bg-blue-600 inline-block w-full px-4 py-2 mb-2 text-center text-white transition duration-300 bg-blue-500 rounded"
+                className="hover:bg-blue-600 block w-full px-4 py-2 mb-2 text-center text-white transition duration-300 bg-blue-500 rounded"
               >
                 View Details
               </Link>

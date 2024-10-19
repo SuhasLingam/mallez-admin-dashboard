@@ -20,6 +20,7 @@ import {
   FaUpload,
   FaChartBar,
   FaShoppingBag,
+  FaChevronRight,
 } from "react-icons/fa";
 
 const MallOwnerDashboard = () => {
@@ -83,7 +84,26 @@ const MallOwnerDashboard = () => {
             doc(db, `mallChains/${mallChainId}/locations`, locationId)
           );
           if (locationDoc.exists()) {
-            return { id: locationDoc.id, ...locationDoc.data(), mallChainId };
+            const locationData = locationDoc.data();
+            const floorLayoutsSnapshot = await getDocs(
+              collection(
+                db,
+                `mallChains/${mallChainId}/locations/${locationId}/floorLayout`
+              )
+            );
+            const mallOffersSnapshot = await getDocs(
+              collection(
+                db,
+                `mallChains/${mallChainId}/locations/${locationId}/MallOffers`
+              )
+            );
+            return {
+              id: locationDoc.id,
+              ...locationData,
+              mallChainId,
+              floorLayoutsCount: floorLayoutsSnapshot.size,
+              activeOffersCount: mallOffersSnapshot.size,
+            };
           }
           return null;
         })
@@ -156,37 +176,48 @@ const MallOwnerDashboard = () => {
 
   return (
     <div className="container max-w-6xl px-4 py-8 mx-auto">
+      <nav className="flex mb-8" aria-label="Breadcrumb">
+        <ol className="inline-flex items-center space-x-1 md:space-x-3">
+          <li className="inline-flex items-center">
+            <span className="text-gray-700 hover:text-blue-600 font-medium">
+              Dashboard
+            </span>
+          </li>
+        </ol>
+      </nav>
+
       <h1 className="mb-8 text-3xl font-bold text-center text-gray-800">
         Mall Owner Dashboard
       </h1>
+
       {assignedLocations.length > 0 ? (
-        <div className="md:grid-cols-2 lg:grid-cols-3 grid gap-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {assignedLocations.map((location) => (
             <div
               key={location.id}
-              className="overflow-hidden bg-white rounded-lg shadow-lg"
+              className="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
             >
               <div className="relative h-48">
                 {location.imageUrl ? (
                   <img
                     src={location.imageUrl}
                     alt={location.name}
-                    className="object-cover w-full h-full"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="flex items-center justify-center w-full h-full bg-gray-200">
-                    <FaBuilding className="text-4xl text-gray-400" />
+                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                    <FaBuilding className="text-gray-400 text-4xl" />
                   </div>
                 )}
-                <div className="bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0 p-4">
-                  <h2 className="text-xl font-semibold text-white">
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4">
+                  <h2 className="text-2xl font-semibold text-white">
                     {location.name}
                   </h2>
                 </div>
               </div>
               <div className="p-4">
-                <p className="mb-2 text-gray-600">
-                  <FaMapMarkerAlt className="inline-block mr-2" />
+                <p className="mb-2 text-gray-600 flex items-center">
+                  <FaMapMarkerAlt className="mr-2" />
                   {location.address || "Address not available"}
                 </p>
                 <div className="flex justify-between mb-4">
@@ -206,13 +237,13 @@ const MallOwnerDashboard = () => {
                 <div className="flex space-x-2">
                   <Link
                     to={`/location/${location.id}`}
-                    className="hover:bg-blue-600 flex-1 px-4 py-2 text-center text-white bg-blue-500 rounded"
+                    className="flex-1 px-4 py-2 text-center text-white bg-blue-500 rounded hover:bg-blue-600 transition duration-300"
                   >
                     Manage
                   </Link>
                   <button
                     onClick={() => handleEditLocation(location)}
-                    className="hover:bg-blue-200 px-4 py-2 text-blue-500 bg-blue-100 rounded"
+                    className="px-4 py-2 text-blue-500 bg-blue-100 rounded hover:bg-blue-200 transition duration-300"
                   >
                     <FaEdit />
                   </button>
@@ -288,13 +319,13 @@ const MallOwnerDashboard = () => {
               <div className="flex justify-end space-x-2">
                 <button
                   onClick={handleUpdateLocation}
-                  className="hover:bg-blue-600 px-4 py-2 text-white bg-blue-500 rounded"
+                  className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600 transition duration-300"
                 >
                   Update
                 </button>
                 <button
                   onClick={() => setShowEditModal(false)}
-                  className="hover:bg-gray-300 px-4 py-2 text-gray-700 bg-gray-200 rounded"
+                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition duration-300"
                 >
                   Cancel
                 </button>
