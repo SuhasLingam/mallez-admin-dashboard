@@ -22,6 +22,11 @@ import {
   FaUpload,
   FaUserPlus,
   FaImage,
+  FaBuilding,
+  FaMapMarkerAlt,
+  FaChartBar,
+  FaShoppingBag,
+  FaUserMinus,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -40,6 +45,7 @@ const MallLocations = ({ userRole }) => {
   const [assignedMallOwners, setAssignedMallOwners] = useState({});
   const [editImageLocationId, setEditImageLocationId] = useState(null);
   const [editImageFile, setEditImageFile] = useState(null);
+  const [selectedLocations, setSelectedLocations] = useState([]);
 
   useEffect(() => {
     fetchMallChainAndLocations();
@@ -220,8 +226,7 @@ const MallLocations = ({ userRole }) => {
     }
   };
 
-  const handleAssignMallOwner = (locationId) => {
-    setSelectedLocationId(locationId);
+  const handleAssignMallOwner = () => {
     setShowAssignModal(true);
   };
 
@@ -231,29 +236,46 @@ const MallLocations = ({ userRole }) => {
       return;
     }
 
+    if (selectedLocations.length === 0) {
+      toast.error("Please select at least one location");
+      return;
+    }
+
     try {
-      const locationRef = doc(
+      const mallOwnerRef = doc(
         db,
-        `mallChains/${mallChainId}/locations`,
-        selectedLocationId
+        `platform_users/mallOwner/mallOwner/${selectedMallOwner.id}`
       );
-      await updateDoc(locationRef, { mallOwnerId: selectedMallOwner.id });
+      const mallOwnerDoc = await getDoc(mallOwnerRef);
+      const existingAssignedLocations =
+        mallOwnerDoc.data().assignedLocations || [];
 
-      const mallOwnerPath = `platform_users/mallOwner/mallOwner/${selectedMallOwner.id}`;
-      console.log("Updating mall owner document at path:", mallOwnerPath);
-      console.log("Selected Mall Owner ID:", selectedMallOwner.id);
+      const updatedAssignedLocations = [
+        ...existingAssignedLocations,
+        ...selectedLocations.map((locationId) => ({
+          locationId,
+          mallChainId,
+        })),
+      ];
 
-      const mallOwnerRef = doc(db, mallOwnerPath);
       await updateDoc(mallOwnerRef, {
-        assignedLocationId: selectedLocationId,
-        assignedMallChainId: mallChainId,
-        role: "mallOwner", // Ensure the role is set
+        assignedLocations: updatedAssignedLocations,
+        role: "mallOwner",
       });
 
-      console.log("Mall owner assigned successfully");
+      // Update each location with the mall owner's ID
+      for (const locationId of selectedLocations) {
+        const locationRef = doc(
+          db,
+          `mallChains/${mallChainId}/locations`,
+          locationId
+        );
+        await updateDoc(locationRef, { mallOwnerId: selectedMallOwner.id });
+      }
+
       toast.success("Mall owner assigned successfully");
       setShowAssignModal(false);
-      setSelectedLocationId(null);
+      setSelectedLocations([]);
       setSelectedMallOwner(null);
       fetchMallChainAndLocations();
     } catch (error) {
@@ -303,21 +325,60 @@ const MallLocations = ({ userRole }) => {
     }
   };
 
-  const Breadcrumb = () => (
-    <nav className="flex mb-4" aria-label="Breadcrumb">
-      <ol className="md:space-x-3 inline-flex items-center space-x-1">
-        <li className="inline-flex items-center">
-          <Link to="/mall-chains" className="hover:text-blue-600 text-gray-700">
-            Mall Chains
-          </Link>
-        </li>
-        <FaChevronRight className="mx-2 text-gray-500" />
-        <li className="inline-flex items-center">
-          <span className="text-gray-500">{mallChain?.title}</span>
-        </li>
-      </ol>
-    </nav>
-  );
+  const handleUnassignMallOwner = async (locationId) => {
+    if (
+      window.confirm(
+        "Are you sure you want to unassign the mall owner from this location?"
+      )
+    ) {
+      try {
+        const locationRef = doc(
+          db,
+          `mallChains/${mallChainId}/locations`,
+          locationId
+        );
+        const locationDoc = await getDoc(locationRef);
+
+        if (locationDoc.exists()) {
+          const locationData = locationDoc.data();
+          const mallOwnerId = locationData.mallOwnerId;
+
+          if (mallOwnerId) {
+            // Remove the location from the mall owner's assigned locations
+            const mallOwnerRef = doc(
+              db,
+              `platform_users/mallOwner/mallOwner/${mallOwnerId}`
+            );
+            const mallOwnerDoc = await getDoc(mallOwnerRef);
+
+            if (mallOwnerDoc.exists()) {
+              const mallOwnerData = mallOwnerDoc.data();
+              const updatedAssignedLocations = (
+                mallOwnerData.assignedLocations || []
+              ).filter((loc) => loc.locationId !== locationId);
+
+              await updateDoc(mallOwnerRef, {
+                assignedLocations: updatedAssignedLocations,
+              });
+            }
+
+            // Remove the mallOwnerId from the location
+            await updateDoc(locationRef, { mallOwnerId: null });
+
+            toast.success("Mall owner unassigned successfully");
+            fetchMallChainAndLocations();
+          } else {
+            toast.warn("This location doesn't have an assigned mall owner");
+          }
+        } else {
+          toast.error("Location not found");
+        }
+      } catch (error) {
+        console.error("Error unassigning mall owner:", error);
+        toast.error("Failed to unassign mall owner");
+      }
+    }
+  };
 
   if (isLoading) {
     return <div className="mt-8 text-center">Loading...</div>;
@@ -325,8 +386,24 @@ const MallLocations = ({ userRole }) => {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <Breadcrumb />
-      <h1 className="text-3xl font-bold mb-8 text-gray-800">
+      <nav className="flex mb-8" aria-label="Breadcrumb">
+        <ol className="inline-flex items-center space-x-1 md:space-x-3">
+          <li className="inline-flex items-center">
+            <Link
+              to="/mall-chains"
+              className="text-gray-700 hover:text-blue-600"
+            >
+              Mall Chains
+            </Link>
+          </li>
+          <FaChevronRight className="mx-2 text-gray-500" />
+          <li className="inline-flex items-center">
+            <span className="text-gray-500">{mallChain?.title}</span>
+          </li>
+        </ol>
+      </nav>
+
+      <h1 className="text-3xl font-bold mb-8 text-center text-gray-800">
         {mallChain?.title} - Locations
       </h1>
 
@@ -394,14 +471,10 @@ const MallLocations = ({ userRole }) => {
                   src={location.imageUrl}
                   alt={location.name}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    console.error("Image failed to load:", e);
-                    e.target.src = "path/to/fallback/image.jpg";
-                  }}
                 />
               ) : (
                 <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                  <FaImage className="text-gray-400 text-4xl" />
+                  <FaBuilding className="text-gray-400 text-4xl" />
                 </div>
               )}
               <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4">
@@ -411,6 +484,24 @@ const MallLocations = ({ userRole }) => {
               </div>
             </div>
             <div className="p-4">
+              <p className="mb-2 text-gray-600">
+                <FaMapMarkerAlt className="inline-block mr-2" />
+                {location.address || "Address not available"}
+              </p>
+              <div className="flex justify-between mb-4">
+                <div className="text-center">
+                  <FaChartBar className="mx-auto text-2xl text-blue-500" />
+                  <p className="mt-1 text-sm font-semibold">
+                    {location.floorLayoutsCount || 0} Layouts
+                  </p>
+                </div>
+                <div className="text-center">
+                  <FaShoppingBag className="mx-auto text-2xl text-green-500" />
+                  <p className="mt-1 text-sm font-semibold">
+                    {location.activeOffersCount || 0} Offers
+                  </p>
+                </div>
+              </div>
               <Link
                 to={`/mall/${mallChainId}/location/${location.id}`}
                 className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300 inline-block mb-2 w-full text-center"
@@ -444,12 +535,37 @@ const MallLocations = ({ userRole }) => {
                       <FaTrash className="inline mr-1" /> Delete
                     </button>
                   </div>
-                  <button
-                    onClick={() => handleAssignMallOwner(location.id)}
-                    className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
-                  >
-                    <FaUserPlus className="mr-1" /> Assign Mall Owner
-                  </button>
+                  <div className="flex justify-between">
+                    <button
+                      onClick={() => handleAssignMallOwner(location.id)}
+                      className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
+                    >
+                      <FaUserPlus className="mr-1" /> Assign
+                    </button>
+                    <button
+                      onClick={() => handleUnassignMallOwner(location.id)}
+                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition duration-300 flex items-center justify-center"
+                    >
+                      <FaUserMinus className="mr-1" /> Unassign
+                    </button>
+                  </div>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedLocations.includes(location.id)}
+                      onChange={() => {
+                        setSelectedLocations((prev) =>
+                          prev.includes(location.id)
+                            ? prev.filter((id) => id !== location.id)
+                            : [...prev, location.id]
+                        );
+                      }}
+                      className="form-checkbox h-5 w-5 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Select for assignment
+                    </span>
+                  </label>
                 </div>
               )}
               {assignedMallOwners[location.id] && (
@@ -463,6 +579,19 @@ const MallLocations = ({ userRole }) => {
           </div>
         ))}
       </div>
+
+      {userRole === "admin" && (
+        <div className="mt-8">
+          <button
+            onClick={handleAssignMallOwner}
+            className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition duration-300 flex items-center justify-center mx-auto"
+            disabled={selectedLocations.length === 0}
+          >
+            <FaUserPlus className="mr-2" />
+            Assign Selected Locations to Mall Owner
+          </button>
+        </div>
+      )}
 
       {showAssignModal && (
         <div className="fixed inset-0 z-10 overflow-y-auto">

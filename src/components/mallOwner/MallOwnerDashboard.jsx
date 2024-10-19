@@ -18,21 +18,23 @@ import {
   FaSpinner,
   FaEdit,
   FaUpload,
+  FaChartBar,
+  FaShoppingBag,
 } from "react-icons/fa";
 
 const MallOwnerDashboard = () => {
-  const [assignedLocation, setAssignedLocation] = useState(null);
+  const [assignedLocations, setAssignedLocations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editName, setEditName] = useState("");
+  const [editingLocation, setEditingLocation] = useState(null);
   const [editImageFile, setEditImageFile] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchAssignedLocation();
+    fetchAssignedLocations();
   }, []);
 
-  const fetchAssignedLocation = async () => {
+  const fetchAssignedLocations = async () => {
     setIsLoading(true);
     try {
       if (!auth.currentUser) {
@@ -68,63 +70,38 @@ const MallOwnerDashboard = () => {
         return;
       }
 
-      const { assignedLocationId, assignedMallChainId } = userData;
-      if (!assignedLocationId || !assignedMallChainId) {
-        setAssignedLocation(null);
+      const { assignedLocations } = userData;
+      if (!assignedLocations || assignedLocations.length === 0) {
+        setAssignedLocations([]);
         setIsLoading(false);
         return;
       }
 
-      const locationDoc = await getDoc(
-        doc(
-          db,
-          `mallChains/${assignedMallChainId}/locations`,
-          assignedLocationId
-        )
+      const locationsData = await Promise.all(
+        assignedLocations.map(async ({ locationId, mallChainId }) => {
+          const locationDoc = await getDoc(
+            doc(db, `mallChains/${mallChainId}/locations`, locationId)
+          );
+          if (locationDoc.exists()) {
+            return { id: locationDoc.id, ...locationDoc.data(), mallChainId };
+          }
+          return null;
+        })
       );
 
-      if (!locationDoc.exists()) {
-        toast.error("Assigned location not found");
-        setAssignedLocation(null);
-      } else {
-        const locationData = locationDoc.data();
-
-        // Fetch floor layouts count
-        const floorLayoutsSnapshot = await getDocs(
-          collection(
-            db,
-            `mallChains/${assignedMallChainId}/locations/${assignedLocationId}/floorLayout`
-          )
-        );
-        const floorLayoutsCount = floorLayoutsSnapshot.size;
-
-        // Fetch active offers count
-        const mallOffersSnapshot = await getDocs(
-          collection(
-            db,
-            `mallChains/${assignedMallChainId}/locations/${assignedLocationId}/MallOffers`
-          )
-        );
-        const activeOffersCount = mallOffersSnapshot.size;
-
-        setAssignedLocation({
-          id: locationDoc.id,
-          ...locationData,
-          mallChainId: assignedMallChainId,
-          floorLayoutsCount,
-          activeOffersCount,
-        });
-      }
+      setAssignedLocations(
+        locationsData.filter((location) => location !== null)
+      );
     } catch (error) {
-      console.error("Error in fetchAssignedLocation:", error);
+      console.error("Error in fetchAssignedLocations:", error);
       toast.error("An error occurred while fetching your data");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEditLocation = () => {
-    setEditName(assignedLocation.name);
+  const handleEditLocation = (location) => {
+    setEditingLocation({ ...location });
     setShowEditModal(true);
   };
 
@@ -136,7 +113,7 @@ const MallOwnerDashboard = () => {
 
   const handleUpdateLocation = async () => {
     try {
-      let imageUrl = assignedLocation.imageUrl;
+      let imageUrl = editingLocation.imageUrl;
       if (editImageFile) {
         const storageRef = ref(
           storage,
@@ -148,17 +125,21 @@ const MallOwnerDashboard = () => {
 
       const locationRef = doc(
         db,
-        `mallChains/${assignedLocation.mallChainId}/locations`,
-        assignedLocation.id
+        `mallChains/${editingLocation.mallChainId}/locations`,
+        editingLocation.id
       );
       await updateDoc(locationRef, {
-        name: editName,
+        name: editingLocation.name,
         imageUrl: imageUrl,
+        address: editingLocation.address,
+        description: editingLocation.description,
       });
 
       toast.success("Location updated successfully");
       setShowEditModal(false);
-      fetchAssignedLocation();
+      setEditingLocation(null);
+      setEditImageFile(null);
+      fetchAssignedLocations();
     } catch (error) {
       console.error("Error updating location:", error);
       toast.error("Failed to update location");
@@ -174,81 +155,77 @@ const MallOwnerDashboard = () => {
   }
 
   return (
-    <div className="container max-w-4xl px-4 py-8 mx-auto">
+    <div className="container max-w-6xl px-4 py-8 mx-auto">
       <h1 className="mb-8 text-3xl font-bold text-center text-gray-800">
         Mall Owner Dashboard
       </h1>
-      {assignedLocation ? (
-        <div className="overflow-hidden bg-white rounded-lg shadow-lg">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-semibold text-gray-700">
-                Your Assigned Location
-              </h2>
-              <button
-                onClick={handleEditLocation}
-                className="hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 px-4 py-2 text-white bg-blue-500 rounded"
-              >
-                <FaEdit className="inline-block mr-2" />
-                Edit Location
-              </button>
-            </div>
-            <div className="md:flex-row md:items-center flex flex-col">
-              <div className="md:mb-0 md:mr-6 flex-shrink-0 mb-4">
-                {assignedLocation.imageUrl ? (
+      {assignedLocations.length > 0 ? (
+        <div className="md:grid-cols-2 lg:grid-cols-3 grid gap-6">
+          {assignedLocations.map((location) => (
+            <div
+              key={location.id}
+              className="overflow-hidden bg-white rounded-lg shadow-lg"
+            >
+              <div className="relative h-48">
+                {location.imageUrl ? (
                   <img
-                    src={assignedLocation.imageUrl}
-                    alt={assignedLocation.name}
-                    className="md:w-64 object-cover w-full h-48 rounded-lg"
+                    src={location.imageUrl}
+                    alt={location.name}
+                    className="object-cover w-full h-full"
                   />
                 ) : (
-                  <div className="md:w-64 flex items-center justify-center w-full h-48 bg-gray-200 rounded-lg">
+                  <div className="flex items-center justify-center w-full h-full bg-gray-200">
                     <FaBuilding className="text-4xl text-gray-400" />
                   </div>
                 )}
+                <div className="bg-gradient-to-b from-black to-transparent absolute top-0 left-0 right-0 p-4">
+                  <h2 className="text-xl font-semibold text-white">
+                    {location.name}
+                  </h2>
+                </div>
               </div>
-              <div className="flex-grow">
-                <h3 className="mb-2 text-xl font-semibold text-gray-700">
-                  {assignedLocation.name}
-                </h3>
-                <p className="mb-4 text-gray-600">
+              <div className="p-4">
+                <p className="mb-2 text-gray-600">
                   <FaMapMarkerAlt className="inline-block mr-2" />
-                  {assignedLocation.address || "Address not available"}
+                  {location.address || "Address not available"}
                 </p>
-                <Link
-                  to={`/location/${assignedLocation.id}`}
-                  className="hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 inline-block px-6 py-3 text-white transition duration-300 bg-blue-500 rounded-lg"
-                >
-                  Manage Location Details
-                </Link>
+                <div className="flex justify-between mb-4">
+                  <div className="text-center">
+                    <FaChartBar className="mx-auto text-2xl text-blue-500" />
+                    <p className="mt-1 text-sm font-semibold">
+                      {location.floorLayoutsCount || 0} Layouts
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <FaShoppingBag className="mx-auto text-2xl text-green-500" />
+                    <p className="mt-1 text-sm font-semibold">
+                      {location.activeOffersCount || 0} Offers
+                    </p>
+                  </div>
+                </div>
+                <div className="flex space-x-2">
+                  <Link
+                    to={`/location/${location.id}`}
+                    className="hover:bg-blue-600 flex-1 px-4 py-2 text-center text-white bg-blue-500 rounded"
+                  >
+                    Manage
+                  </Link>
+                  <button
+                    onClick={() => handleEditLocation(location)}
+                    className="hover:bg-blue-200 px-4 py-2 text-blue-500 bg-blue-100 rounded"
+                  >
+                    <FaEdit />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="bg-gray-50 px-6 py-4">
-            <h3 className="mb-2 text-lg font-semibold text-gray-700">
-              Quick Stats
-            </h3>
-            <div className="sm:grid-cols-2 grid grid-cols-1 gap-4">
-              <div className="p-3 bg-white rounded-lg shadow">
-                <p className="text-sm text-gray-500">Floor Layouts</p>
-                <p className="text-xl font-semibold">
-                  {assignedLocation.floorLayoutsCount || 0}
-                </p>
-              </div>
-              <div className="p-3 bg-white rounded-lg shadow">
-                <p className="text-sm text-gray-500">Active Offers</p>
-                <p className="text-xl font-semibold">
-                  {assignedLocation.activeOffersCount || 0}
-                </p>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       ) : (
         <div className="p-6 text-center bg-white rounded-lg shadow-lg">
           <FaBuilding className="mx-auto mb-4 text-6xl text-gray-400" />
           <p className="text-xl text-gray-700">
-            You have not been assigned to any location yet.
+            You have not been assigned to any locations yet.
           </p>
           <p className="mt-2 text-gray-600">
             Please contact an administrator for assistance.
@@ -257,58 +234,67 @@ const MallOwnerDashboard = () => {
       )}
 
       {showEditModal && (
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="sm:block sm:p-0 flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-            <div
-              className="fixed inset-0 transition-opacity"
-              aria-hidden="true"
-            >
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-            <span
-              className="sm:inline-block sm:align-middle sm:h-screen hidden"
-              aria-hidden="true"
-            >
-              &#8203;
-            </span>
-            <div className="sm:my-8 sm:align-middle sm:max-w-lg sm:w-full inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl">
-              <div className="sm:p-6 sm:pb-4 px-4 pt-5 pb-4 bg-white">
-                <h3 className="text-lg font-medium leading-6 text-gray-900">
-                  Edit Location
-                </h3>
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full p-2 mt-1 border rounded-md"
-                    placeholder="Location name"
-                  />
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Location Image
-                    </label>
-                    <input
-                      type="file"
-                      onChange={handleImageChange}
-                      accept="image/*"
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
+        <div className="fixed inset-0 z-10 overflow-y-auto bg-black bg-opacity-50">
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="w-full max-w-md p-6 bg-white rounded-lg">
+              <h2 className="mb-4 text-2xl font-bold">Edit Location</h2>
+              <input
+                type="text"
+                value={editingLocation.name}
+                onChange={(e) =>
+                  setEditingLocation({
+                    ...editingLocation,
+                    name: e.target.value,
+                  })
+                }
+                className="w-full p-2 mb-4 border rounded"
+                placeholder="Location name"
+              />
+              <input
+                type="text"
+                value={editingLocation.address}
+                onChange={(e) =>
+                  setEditingLocation({
+                    ...editingLocation,
+                    address: e.target.value,
+                  })
+                }
+                className="w-full p-2 mb-4 border rounded"
+                placeholder="Address"
+              />
+              <textarea
+                value={editingLocation.description}
+                onChange={(e) =>
+                  setEditingLocation({
+                    ...editingLocation,
+                    description: e.target.value,
+                  })
+                }
+                className="w-full p-2 mb-4 border rounded"
+                placeholder="Description"
+                rows="3"
+              ></textarea>
+              <div className="mb-4">
+                <label className="block mb-2 font-semibold">
+                  Location Image
+                </label>
+                <input
+                  type="file"
+                  onChange={handleImageChange}
+                  accept="image/*"
+                  className="w-full p-2 border rounded"
+                />
               </div>
-              <div className="bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse px-4 py-3">
+              <div className="flex justify-end space-x-2">
                 <button
-                  type="button"
-                  className="hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm"
                   onClick={handleUpdateLocation}
+                  className="hover:bg-blue-600 px-4 py-2 text-white bg-blue-500 rounded"
                 >
                   Update
                 </button>
                 <button
-                  type="button"
-                  className="hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm"
                   onClick={() => setShowEditModal(false)}
+                  className="hover:bg-gray-300 px-4 py-2 text-gray-700 bg-gray-200 rounded"
                 >
                   Cancel
                 </button>

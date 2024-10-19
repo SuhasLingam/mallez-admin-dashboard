@@ -14,7 +14,15 @@ import {
 import { db, auth, storage } from "../../services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "react-toastify";
-import { FaEdit, FaTrash, FaPlus, FaUpload } from "react-icons/fa";
+import {
+  FaEdit,
+  FaTrash,
+  FaPlus,
+  FaUpload,
+  FaChartBar,
+  FaShoppingBag,
+  FaMapMarkerAlt,
+} from "react-icons/fa";
 
 const MallOwnerLocationDetails = () => {
   const { locationId } = useParams();
@@ -67,21 +75,25 @@ const MallOwnerLocationDetails = () => {
         return;
       }
 
-      const { assignedLocationId, assignedMallChainId } = userData;
-      if (assignedLocationId !== locationId) {
+      const assignedLocation = userData.assignedLocations.find(
+        (loc) => loc.locationId === locationId
+      );
+      if (!assignedLocation) {
         toast.error("You don't have access to this location");
         navigate("/mall-owner");
         return;
       }
 
+      const { mallChainId } = assignedLocation;
+
       const locationDoc = await getDoc(
-        doc(db, `mallChains/${assignedMallChainId}/locations`, locationId)
+        doc(db, `mallChains/${mallChainId}/locations`, locationId)
       );
       if (locationDoc.exists()) {
         setLocation({
           id: locationDoc.id,
           ...locationDoc.data(),
-          mallChainId: assignedMallChainId,
+          mallChainId: mallChainId,
         });
       } else {
         toast.error("Location not found");
@@ -92,7 +104,7 @@ const MallOwnerLocationDetails = () => {
       const floorLayoutsSnapshot = await getDocs(
         collection(
           db,
-          `mallChains/${assignedMallChainId}/locations/${locationId}/floorLayout`
+          `mallChains/${mallChainId}/locations/${locationId}/floorLayout`
         )
       );
       setFloorLayouts(
@@ -102,7 +114,7 @@ const MallOwnerLocationDetails = () => {
       const mallOffersSnapshot = await getDocs(
         collection(
           db,
-          `mallChains/${assignedMallChainId}/locations/${locationId}/MallOffers`
+          `mallChains/${mallChainId}/locations/${locationId}/MallOffers`
         )
       );
       setMallOffers(
@@ -223,10 +235,39 @@ const MallOwnerLocationDetails = () => {
     }
   };
 
+  const handleUpdateLocation = async () => {
+    try {
+      let imageUrl = location.imageUrl;
+      if (imageFile) {
+        imageUrl = await handleImageUpload();
+        if (!imageUrl) return;
+      }
+
+      const locationRef = doc(
+        db,
+        `mallChains/${location.mallChainId}/locations`,
+        locationId
+      );
+      await updateDoc(locationRef, {
+        name: location.name,
+        address: location.address,
+        description: location.description,
+        imageUrl: imageUrl,
+      });
+
+      toast.success("Location updated successfully");
+      setImageFile(null);
+      fetchLocationDetails();
+    } catch (error) {
+      console.error("Error updating location:", error);
+      toast.error("Failed to update location");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin w-12 h-12 border-t-2 border-b-2 border-blue-500 rounded-full"></div>
+        <div className="w-12 h-12 border-t-2 border-b-2 border-blue-500 rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -236,6 +277,59 @@ const MallOwnerLocationDetails = () => {
       <h1 className="mb-8 text-3xl font-bold text-center">
         {location?.name} Details
       </h1>
+
+      <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
+        <h2 className="mb-4 text-2xl font-semibold">Location Information</h2>
+        <div className="flex flex-col md:flex-row">
+          <div className="w-full md:w-1/2 mb-4 md:mb-0 md:mr-4">
+            <img
+              src={location?.imageUrl}
+              alt={location?.name}
+              className="object-cover w-full h-64 rounded-lg shadow-md"
+            />
+          </div>
+          <div className="w-full md:w-1/2">
+            <input
+              type="text"
+              value={location?.name}
+              onChange={(e) =>
+                setLocation({ ...location, name: e.target.value })
+              }
+              className="w-full p-2 mb-2 border rounded"
+            />
+            <input
+              type="text"
+              value={location?.address}
+              onChange={(e) =>
+                setLocation({ ...location, address: e.target.value })
+              }
+              className="w-full p-2 mb-2 border rounded"
+              placeholder="Address"
+            />
+            <textarea
+              value={location?.description}
+              onChange={(e) =>
+                setLocation({ ...location, description: e.target.value })
+              }
+              className="w-full p-2 mb-2 border rounded"
+              placeholder="Description"
+              rows="3"
+            ></textarea>
+            <input
+              type="file"
+              onChange={(e) => setImageFile(e.target.files[0])}
+              accept="image/*"
+              className="w-full p-2 mb-2 border rounded"
+            />
+            <button
+              onClick={handleUpdateLocation}
+              className="w-full px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
+            >
+              Update Location
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
         <h2 className="mb-4 text-2xl font-semibold">Floor Layouts</h2>
@@ -254,13 +348,13 @@ const MallOwnerLocationDetails = () => {
                       prompt("Enter new name", layout.name)
                     )
                   }
-                  className="hover:text-blue-700 mr-2 text-blue-500"
+                  className="mr-2 text-blue-500 hover:text-blue-700"
                 >
                   <FaEdit />
                 </button>
                 <button
                   onClick={() => handleDeleteFloorLayout(layout.id)}
-                  className="hover:text-red-700 text-red-500"
+                  className="text-red-500 hover:text-red-700"
                 >
                   <FaTrash />
                 </button>
@@ -276,11 +370,11 @@ const MallOwnerLocationDetails = () => {
               setNewFloorLayout({ ...newFloorLayout, name: e.target.value })
             }
             placeholder="New floor layout name"
-            className="focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow p-2 border rounded"
+            className="flex-grow p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={handleAddFloorLayout}
-            className="hover:bg-green-600 flex items-center p-2 text-white transition duration-300 bg-green-500 rounded"
+            className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600 transition duration-300 flex items-center"
           >
             <FaPlus className="mr-2" /> Add
           </button>
@@ -289,7 +383,7 @@ const MallOwnerLocationDetails = () => {
 
       <div className="p-6 bg-white rounded-lg shadow-md">
         <h2 className="mb-4 text-2xl font-semibold">Mall Offers</h2>
-        <div className="sm:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-4 mb-4">
+        <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 lg:grid-cols-3">
           {mallOffers.map((offer) => (
             <div key={offer.id} className="p-4 border rounded-lg shadow-sm">
               <img
@@ -299,14 +393,14 @@ const MallOwnerLocationDetails = () => {
               />
               <button
                 onClick={() => handleDeleteMallOffer(offer.id)}
-                className="hover:text-red-700 flex items-center text-red-500"
+                className="flex items-center text-red-500 hover:text-red-700"
               >
                 <FaTrash className="mr-1" /> Delete
               </button>
             </div>
           ))}
         </div>
-        <div className="sm:flex-row sm:space-y-0 sm:space-x-2 flex flex-col space-y-2">
+        <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
           <input
             type="text"
             value={newMallOffer.imageUrl}
@@ -314,7 +408,7 @@ const MallOwnerLocationDetails = () => {
               setNewMallOffer({ ...newMallOffer, imageUrl: e.target.value })
             }
             placeholder="New mall offer image URL"
-            className="focus:outline-none focus:ring-2 focus:ring-blue-500 flex-grow p-2 border rounded"
+            className="flex-grow p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="file"
@@ -324,7 +418,7 @@ const MallOwnerLocationDetails = () => {
           />
           <button
             onClick={handleAddMallOffer}
-            className="hover:bg-green-600 flex items-center justify-center p-2 text-white transition duration-300 bg-green-500 rounded"
+            className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
           >
             <FaPlus className="mr-2" /> Add Offer
           </button>
