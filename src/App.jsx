@@ -120,17 +120,19 @@ function App() {
 
   const determineUserRole = async (currentUser) => {
     try {
-      const adminRole = await checkUserRole(currentUser.email, "admins");
+      const adminRole = await checkUserRole(
+        currentUser.email,
+        "admin",
+        "admin"
+      );
       if (adminRole) return "admin";
 
       const mallOwnerRole = await checkUserRole(
         currentUser.email,
-        "mallOwners"
+        "mallOwner",
+        "mallOwner"
       );
       if (mallOwnerRole) return "mallOwner";
-
-      const userRole = await checkUserRole(currentUser.email, "users");
-      if (userRole) return "user";
 
       return null;
     } catch (error) {
@@ -138,10 +140,10 @@ function App() {
     }
   };
 
-  const checkUserRole = async (email, collectionName) => {
+  const checkUserRole = async (email, role, subCollection) => {
     try {
       const q = query(
-        collection(db, collectionName),
+        collection(db, "platform_users", role, subCollection),
         where("email", "==", email)
       );
       const snapshot = await getDocs(q);
@@ -409,6 +411,13 @@ function App() {
     setIsUnauthorizedModalOpen(false);
   };
 
+  const ProtectedRoute = ({ children, allowedRoles }) => {
+    if (!user || !allowedRoles.includes(userRole)) {
+      return <Navigate to="/login" replace />;
+    }
+    return children;
+  };
+
   return (
     <>
       <ToastContainer
@@ -437,8 +446,6 @@ function App() {
           Your account is not associated with any role. Please contact an
           administrator.
         </div>
-      ) : userRole === "user" ? (
-        <div>You are not authorized to access this dashboard.</div>
       ) : (
         <div className="flex h-screen bg-gray-100">
           <Sidebar
@@ -458,28 +465,32 @@ function App() {
                 <Route
                   path="/"
                   element={
-                    <Dashboard
-                      adminData={adminData}
-                      mallOwnerData={mallOwnerData}
-                      userRole={userRole}
-                      userData={userData}
-                    />
+                    <ProtectedRoute allowedRoles={["admin", "mallOwner"]}>
+                      <Dashboard
+                        adminData={adminData}
+                        mallOwnerData={mallOwnerData}
+                        userRole={userRole}
+                        userData={userData}
+                      />
+                    </ProtectedRoute>
                   }
                 />
                 {userRole === "admin" && (
                   <Route
                     path="/users"
                     element={
-                      <Users
-                        adminData={adminData}
-                        mallOwnerData={mallOwnerData}
-                        userData={userData}
-                        userRole={userRole}
-                        addNewUser={addNewUser}
-                        updateUser={updateUser}
-                        deleteUser={deleteUser}
-                        currentUserEmail={user.email}
-                      />
+                      <ProtectedRoute allowedRoles={["admin"]}>
+                        <Users
+                          adminData={adminData}
+                          mallOwnerData={mallOwnerData}
+                          userData={userData}
+                          userRole={userRole}
+                          addNewUser={addNewUser}
+                          updateUser={updateUser}
+                          deleteUser={deleteUser}
+                          currentUserEmail={user.email}
+                        />
+                      </ProtectedRoute>
                     }
                   />
                 )}

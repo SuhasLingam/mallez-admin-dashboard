@@ -13,16 +13,21 @@ const Dashboard = ({ userRole }) => {
     admin: 0,
     mallOwner: 0,
   });
+  const [allUsers, setAllUsers] = useState({});
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    setDisplayData(allUsers[selectedUserType] || []);
+  }, [selectedUserType, allUsers]);
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
       const roles = ["user", "admin", "mallOwner"];
-      let allUsers = {};
+      let fetchedUsers = {};
       let counts = { user: 0, admin: 0, mallOwner: 0 };
 
       for (const role of roles) {
@@ -33,14 +38,15 @@ const Dashboard = ({ userRole }) => {
           ...doc.data(),
           role,
         }));
-        allUsers[role] = users;
+        fetchedUsers[role] = users;
         counts[role] = users.length;
       }
 
       setUserCounts(counts);
-      setDisplayData(allUsers[selectedUserType] || []);
+      setAllUsers(fetchedUsers);
+      setDisplayData(fetchedUsers[selectedUserType] || []);
       console.log("User counts:", counts);
-      console.log("Display data:", allUsers[selectedUserType]);
+      console.log("Display data:", fetchedUsers[selectedUserType]);
     } catch (error) {
       console.error("Error fetching users:", error);
     } finally {

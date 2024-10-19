@@ -1,20 +1,58 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { FaEnvelope, FaLock, FaGoogle } from "react-icons/fa";
-import { signInWithRedirect } from "firebase/auth";
+import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { auth, db } from "../../services/firebaseService";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 
-const Login = ({ onLogin, onGoogleSignIn }) => {
+const Login = ({ onGoogleSignIn }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  const checkUserRole = async (email) => {
+    const roles = ["admin", "mallOwner"];
+    for (const role of roles) {
+      const q = query(
+        collection(db, "platform_users", role, role),
+        where("email", "==", email)
+      );
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        return role;
+      }
+    }
+    return null;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
     try {
-      await onLogin(email, password);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+      const role = await checkUserRole(user.email);
+      if (role) {
+        localStorage.setItem("userRole", role);
+        toast.success(
+          `${
+            role.charAt(0).toUpperCase() + role.slice(1)
+          } logged in successfully`
+        );
+        navigate("/dashboard");
+      } else {
+        await auth.signOut();
+        setError("You are not authorized to access this dashboard.");
+      }
     } catch (error) {
       setError("Invalid email or password. Please try again.");
     } finally {
