@@ -340,54 +340,54 @@ function App() {
       let collectionName;
 
       if (userRole === "admin") {
-        collectionName = "admins";
+        collectionName = "platform_users";
+        userDocRef = doc(
+          db,
+          collectionName,
+          "admin",
+          "admin",
+          "TzHqb42NVOpDazYD1Igx"
+        );
       } else if (userRole === "mallOwner") {
-        collectionName = "mallOwners";
+        collectionName = "platform_users";
+        // First, query the collection to find the document with matching email
+        const q = query(
+          collection(db, collectionName, "mallOwner", "mallOwner"),
+          where("email", "==", user.email)
+        );
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          throw new Error(`No ${userRole} found with email ${user.email}`);
+        }
+
+        // Use the first matching document's ID
+        userDocRef = doc(
+          db,
+          collectionName,
+          "mallOwner",
+          "mallOwner",
+          querySnapshot.docs[0].id
+        );
       } else {
-        collectionName = "users";
+        throw new Error(`Invalid user role: ${userRole}`);
       }
 
-      // First, query the collection to find the document with matching email
-      const q = query(
-        collection(db, collectionName),
-        where("email", "==", user.email)
-      );
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        throw new Error(`No ${userRole} found with email ${user.email}`);
-      }
-
-      // Use the first matching document's ID
-      userDocRef = doc(db, collectionName, querySnapshot.docs[0].id);
+      console.log("Updating document:", userDocRef.path);
+      console.log("Data to update:", updatedData);
 
       await updateDoc(userDocRef, updatedData);
 
       // Update local state
       if (userRole === "admin") {
-        setAdminData(
-          adminData.map((admin) =>
-            admin.email === user.email ? { ...admin, ...updatedData } : admin
-          )
-        );
+        setAdminData([{ ...adminData[0], ...updatedData }]);
       } else if (userRole === "mallOwner") {
-        setMallOwnerData(
-          mallOwnerData.map((owner) =>
-            owner.email === user.email ? { ...owner, ...updatedData } : owner
-          )
-        );
-      } else {
-        setUserData(
-          userData.map((u) =>
-            u.email === user.email ? { ...u, ...updatedData } : u
-          )
-        );
+        setMallOwnerData([{ ...mallOwnerData[0], ...updatedData }]);
       }
 
-      toast.success("Profile updated successfully");
+      console.log("Profile updated successfully");
     } catch (error) {
       console.error("Error updating user profile:", error);
-      toast.error(`Error updating profile: ${error.message}`);
       throw error;
     }
   };

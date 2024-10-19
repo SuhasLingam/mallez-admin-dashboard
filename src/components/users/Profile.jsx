@@ -112,44 +112,17 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
         }
       }
 
-      if (userRole === "admin") {
-        const docRef = doc(
-          db,
-          "platform_users",
-          "admin",
-          "admin",
-          "TzHqb42NVOpDazYD1Igx"
-        );
-        console.log(`Updating data for admin with email: ${userData.email}`);
-        console.log("Document reference:", docRef.path);
-        console.log("Data to update:", editedData);
+      // Remove address from editedData
+      const { address, ...dataToUpdate } = editedData;
 
-        await updateDoc(docRef, editedData);
-        console.log("Document successfully updated");
-      } else if (userRole === "mallOwner" && userData?.uid) {
-        const docRef = doc(
-          db,
-          "platform_users",
-          "mallOwner",
-          "mallOwner",
-          userData.uid
-        );
-        console.log(`Updating data for mallOwner with UID: ${userData.uid}`);
-        console.log("Document reference:", docRef.path);
-        console.log("Data to update:", editedData);
-
-        await updateDoc(docRef, editedData);
-        console.log("Document successfully updated");
-      } else {
-        console.log("Updating user profile with:", editedData);
-        await updateUserProfile(editedData);
-      }
+      console.log("Updating user profile with:", dataToUpdate);
+      await updateUserProfile(dataToUpdate);
 
       setIsEditing(false);
       toast.success("Profile updated successfully!");
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error("Failed to update profile. Please try again.");
+      toast.error(`Failed to update profile: ${error.message}`);
     }
   };
 
@@ -251,7 +224,7 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                   editedData.phoneNumber,
                   "phoneNumber"
                 )}
-                {renderField("Address", editedData.address, "address")}
+                {/* Address field removed */}
                 {/* Add more fields specific to admin or mallOwner if needed */}
               </>
             )}
