@@ -21,6 +21,7 @@ import {
   FaChevronRight,
   FaUpload,
   FaUserPlus,
+  FaImage,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -37,6 +38,8 @@ const MallLocations = ({ userRole }) => {
   const [mallOwners, setMallOwners] = useState([]);
   const [selectedMallOwner, setSelectedMallOwner] = useState(null);
   const [assignedMallOwners, setAssignedMallOwners] = useState({});
+  const [editImageLocationId, setEditImageLocationId] = useState(null);
+  const [editImageFile, setEditImageFile] = useState(null);
 
   useEffect(() => {
     fetchMallChainAndLocations();
@@ -259,6 +262,47 @@ const MallLocations = ({ userRole }) => {
     }
   };
 
+  const handleEditImage = (locationId) => {
+    setEditImageLocationId(locationId);
+  };
+
+  const handleEditImageChange = (e) => {
+    if (e.target.files[0]) {
+      setEditImageFile(e.target.files[0]);
+    }
+  };
+
+  const handleUpdateLocationImage = async () => {
+    if (!editImageFile) {
+      toast.error("Please select an image to upload");
+      return;
+    }
+
+    try {
+      const storageRef = ref(
+        storage,
+        `mall_images/${Date.now()}_${editImageFile.name}`
+      );
+      await uploadBytes(storageRef, editImageFile);
+      const imageUrl = await getDownloadURL(storageRef);
+
+      const locationRef = doc(
+        db,
+        `mallChains/${mallChainId}/locations`,
+        editImageLocationId
+      );
+      await updateDoc(locationRef, { imageUrl: imageUrl });
+
+      toast.success("Location image updated successfully");
+      setEditImageLocationId(null);
+      setEditImageFile(null);
+      fetchMallChainAndLocations();
+    } catch (error) {
+      console.error("Error updating location image:", error);
+      toast.error("Failed to update location image");
+    }
+  };
+
   const Breadcrumb = () => (
     <nav className="flex mb-4" aria-label="Breadcrumb">
       <ol className="md:space-x-3 inline-flex items-center space-x-1">
@@ -280,125 +324,146 @@ const MallLocations = ({ userRole }) => {
   }
 
   return (
-    <div className="container px-4 py-8 mx-auto">
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
       <Breadcrumb />
-      <h1 className="mb-6 text-3xl font-bold">
+      <h1 className="text-3xl font-bold mb-8 text-gray-800">
         {mallChain?.title} - Locations
       </h1>
-      <div className="p-6 mb-8 bg-white rounded-lg shadow-md">
-        <h2 className="mb-4 text-xl font-semibold">Add New Location</h2>
-        <div className="flex flex-col space-y-4">
-          <input
-            type="text"
-            value={newLocation.name}
-            onChange={(e) =>
-              setNewLocation({ ...newLocation, name: e.target.value })
-            }
-            placeholder="Location name"
-            className="focus:outline-none focus:ring-2 focus:ring-blue-500 p-2 border rounded"
-          />
-          <input
-            type="text"
-            value={newLocation.imageUrl}
-            onChange={(e) =>
-              setNewLocation({ ...newLocation, imageUrl: e.target.value })
-            }
-            placeholder="Image URL"
-            className="focus:outline-none focus:ring-2 focus:ring-blue-500 p-2 border rounded"
-          />
-          <div className="flex items-center space-x-2">
+
+      {userRole === "admin" && (
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h2 className="text-2xl font-semibold mb-4 text-gray-700">
+            Add New Location
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
-              type="file"
-              onChange={handleImageChange}
-              accept="image/*"
-              className="hidden"
-              ref={fileInputRef}
+              type="text"
+              value={newLocation.name}
+              onChange={(e) =>
+                setNewLocation({ ...newLocation, name: e.target.value })
+              }
+              placeholder="Location name"
+              className="p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
+            <input
+              type="text"
+              value={newLocation.imageUrl}
+              onChange={(e) =>
+                setNewLocation({ ...newLocation, imageUrl: e.target.value })
+              }
+              placeholder="Image URL"
+              className="p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <div className="flex items-center space-x-2">
+              <input
+                type="file"
+                onChange={handleImageChange}
+                accept="image/*"
+                className="hidden"
+                ref={fileInputRef}
+              />
+              <button
+                onClick={() => fileInputRef.current.click()}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300 flex items-center"
+              >
+                <FaUpload className="mr-2" /> Choose Image
+              </button>
+              {imageFile && (
+                <span className="text-sm text-gray-600">{imageFile.name}</span>
+              )}
+            </div>
             <button
-              onClick={() => fileInputRef.current.click()}
-              className="hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center px-4 py-2 text-white transition duration-300 ease-in-out bg-blue-500 rounded"
+              onClick={handleAddLocation}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
             >
-              <FaUpload className="mr-2" /> Choose Image
+              <FaPlus className="mr-2" /> Add Location
             </button>
-            {imageFile && (
-              <span className="text-sm text-gray-600">{imageFile.name}</span>
-            )}
           </div>
-          <button
-            onClick={handleAddLocation}
-            className="hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center px-4 py-2 text-white transition duration-300 ease-in-out bg-green-500 rounded"
-          >
-            <FaPlus className="mr-2" /> Add Location
-          </button>
         </div>
-      </div>
-      <div className="md:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-6">
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {locations.map((location) => (
           <div
             key={location.id}
-            className="overflow-hidden bg-white rounded-lg shadow-md"
+            className="bg-white rounded-lg shadow-md overflow-hidden"
           >
-            <div className="p-4">
-              <h3 className="mb-2 text-lg font-semibold">{location.name}</h3>
-              {location.imageUrl && (
+            <div className="relative h-48">
+              {location.imageUrl ? (
                 <img
                   src={location.imageUrl}
                   alt={location.name}
-                  className="object-cover w-full h-48 mb-4 rounded"
+                  className="w-full h-full object-cover"
                   onError={(e) => {
                     console.error("Image failed to load:", e);
                     e.target.src = "path/to/fallback/image.jpg";
                   }}
                 />
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <FaImage className="text-gray-400 text-4xl" />
+                </div>
               )}
-              <div className="flex flex-col space-y-2">
-                <Link
-                  to={`/mall/${mallChainId}/location/${location.id}`}
-                  className="hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center justify-center px-4 py-2 text-white transition duration-300 ease-in-out bg-blue-500 rounded"
-                >
-                  View Details
-                </Link>
-                {userRole === "admin" && (
-                  <>
-                    <div className="flex justify-between">
-                      <button
-                        onClick={() =>
-                          handleUpdateLocation(location.id, {
-                            ...location,
-                            name: prompt("Enter new name", location.name),
-                          })
-                        }
-                        className="hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center px-3 py-1 text-blue-500 transition duration-300 ease-in-out border border-blue-500 rounded"
-                      >
-                        <FaEdit className="mr-1" /> Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteLocation(location.id)}
-                        className="hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center px-3 py-1 text-red-500 transition duration-300 ease-in-out border border-red-500 rounded"
-                      >
-                        <FaTrash className="mr-1" /> Delete
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => handleAssignMallOwner(location.id)}
-                      className="hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center px-3 py-1 text-white transition duration-300 ease-in-out bg-green-500 rounded"
-                    >
-                      <FaUserPlus className="mr-1" /> Assign Mall Owner
-                    </button>
-                  </>
-                )}
-                {assignedMallOwners[location.id] && (
-                  <p className="mt-2 text-sm text-gray-600">
-                    <strong>Assigned to:</strong>{" "}
-                    {assignedMallOwners[location.id].firstName}{" "}
-                    {assignedMallOwners[location.id].lastName}
-                  </p>
-                )}
+              <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4">
+                <h3 className="text-xl font-semibold text-white">
+                  {location.name}
+                </h3>
               </div>
+            </div>
+            <div className="p-4">
+              <Link
+                to={`/mall/${mallChainId}/location/${location.id}`}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300 inline-block mb-2 w-full text-center"
+              >
+                View Details
+              </Link>
+              {userRole === "admin" && (
+                <div className="flex flex-col space-y-2 mt-2">
+                  <div className="flex justify-between">
+                    <button
+                      onClick={() =>
+                        handleUpdateLocation(location.id, {
+                          ...location,
+                          name: prompt("Enter new name", location.name),
+                        })
+                      }
+                      className="text-blue-500 hover:text-blue-700 transition duration-300"
+                    >
+                      <FaEdit className="inline mr-1" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleEditImage(location.id)}
+                      className="text-green-500 hover:text-green-700 transition duration-300"
+                    >
+                      <FaImage className="inline mr-1" /> Edit Image
+                    </button>
+                    <button
+                      onClick={() => handleDeleteLocation(location.id)}
+                      className="text-red-500 hover:text-red-700 transition duration-300"
+                    >
+                      <FaTrash className="inline mr-1" /> Delete
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => handleAssignMallOwner(location.id)}
+                    className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 transition duration-300 flex items-center justify-center"
+                  >
+                    <FaUserPlus className="mr-1" /> Assign Mall Owner
+                  </button>
+                </div>
+              )}
+              {assignedMallOwners[location.id] && (
+                <p className="mt-2 text-sm text-gray-600">
+                  <strong>Assigned to:</strong>{" "}
+                  {assignedMallOwners[location.id].firstName}{" "}
+                  {assignedMallOwners[location.id].lastName}
+                </p>
+              )}
             </div>
           </div>
         ))}
       </div>
+
       {showAssignModal && (
         <div className="fixed inset-0 z-10 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
@@ -450,6 +515,55 @@ const MallLocations = ({ userRole }) => {
                   type="button"
                   className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   onClick={() => setShowAssignModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {editImageLocationId && (
+        <div className="fixed inset-0 z-10 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div
+              className="fixed inset-0 transition-opacity"
+              aria-hidden="true"
+            >
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span
+              className="hidden sm:inline-block sm:align-middle sm:h-screen"
+              aria-hidden="true"
+            >
+              &#8203;
+            </span>
+            <div className="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="px-4 pt-5 pb-4 bg-white sm:p-6 sm:pb-4">
+                <h3 className="text-lg font-medium leading-6 text-gray-900">
+                  Edit Location Image
+                </h3>
+                <div className="mt-2">
+                  <input
+                    type="file"
+                    onChange={handleEditImageChange}
+                    accept="image/*"
+                    className="w-full p-2 mt-1 border rounded-md"
+                  />
+                </div>
+              </div>
+              <div className="px-4 py-3 bg-gray-50 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  className="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={handleUpdateLocationImage}
+                >
+                  Update Image
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={() => setEditImageLocationId(null)}
                 >
                   Cancel
                 </button>
