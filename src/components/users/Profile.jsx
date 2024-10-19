@@ -16,7 +16,13 @@ import { db } from "../../services/firebaseService";
 
 const Profile = ({ userData, userRole, updateUserProfile }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedData, setEditedData] = useState({});
+  const [editedData, setEditedData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    vehicleNumbers: [],
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -25,7 +31,13 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
     console.log("userRole:", userRole);
 
     if (userData) {
-      setEditedData({ ...userData });
+      setEditedData({
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        email: userData.email || "",
+        phoneNumber: userData.phoneNumber || "",
+        vehicleNumbers: userData.vehicleNumbers || [],
+      });
       setIsLoading(false);
     } else {
       console.log("userData is undefined. Waiting for data...");
@@ -138,12 +150,12 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
         <input
           type="text"
           name={name}
-          value={value}
+          value={value || ""}
           onChange={handleInputChange}
           className="focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 block w-full mt-1 border-gray-300 rounded-md shadow-sm"
         />
       ) : (
-        <p className="mt-1 text-sm text-gray-900">{value}</p>
+        <p className="mt-1 text-sm text-gray-900">{value || "Not provided"}</p>
       )}
     </div>
   );
@@ -195,7 +207,7 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                     <div key={index} className="flex items-center mt-1">
                       <input
                         type="text"
-                        value={vn}
+                        value={vn || ""}
                         onChange={(e) =>
                           handleVehicleNumberChange(index, e.target.value)
                         }
@@ -211,7 +223,7 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                 ) : (
                   <ul className="mt-1 text-sm text-gray-900 list-disc list-inside">
                     {editedData.vehicleNumbers.map((vn, index) => (
-                      <li key={index}>{vn}</li>
+                      <li key={index}>{vn || "Not provided"}</li>
                     ))}
                   </ul>
                 )}
@@ -224,8 +236,6 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
                   editedData.phoneNumber,
                   "phoneNumber"
                 )}
-                {/* Address field removed */}
-                {/* Add more fields specific to admin or mallOwner if needed */}
               </>
             )}
             <div className="flex justify-end mt-6">
