@@ -11,7 +11,7 @@ import {
 import { motion } from "framer-motion";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebaseService";
 
 const Profile = ({ userData, userRole, updateUserProfile }) => {
@@ -26,55 +26,44 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (userData) {
-      setEditedData({
-        firstName: userData.firstName || "",
-        lastName: userData.lastName || "",
-        email: userData.email || "",
-        phoneNumber: userData.phoneNumber || "",
-        vehicleNumbers: userData.vehicleNumbers || [],
-      });
-      setIsLoading(false);
-    } else {
-      setIsLoading(true);
-    }
+    fetchUserData();
   }, [userData, userRole]);
 
-  const fetchAdditionalData = async () => {
+  const fetchUserData = async () => {
     if (!userData?.email) {
-      toast.error("Failed to fetch additional profile data.");
+      toast.error("Failed to fetch profile data.");
+      setIsLoading(false);
       return;
     }
 
     try {
-      let docRef;
-      if (userRole === "admin") {
-        docRef = doc(
-          db,
-          "platform_users",
-          "admin",
-          "admin",
-          "TzHqb42NVOpDazYD1Igx"
-        );
-      } else if (userRole === "mallOwner") {
-        // Assuming mallOwner has a similar structure, adjust if needed
-        docRef = doc(
-          db,
-          "platform_users",
-          "mallOwner",
-          "mallOwner",
-          userData.uid
-        );
-      }
+      const userCollectionRef = collection(
+        db,
+        "platform_users",
+        userRole,
+        userRole
+      );
+      const q = query(userCollectionRef, where("email", "==", userData.email));
+      const querySnapshot = await getDocs(q);
 
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setEditedData((prevData) => ({ ...prevData, ...docSnap.data() }));
+      if (!querySnapshot.empty) {
+        const docData = querySnapshot.docs[0].data();
+        setEditedData({
+          firstName: docData.firstName || "",
+          lastName: docData.lastName || "",
+          email: docData.email || "",
+          phoneNumber: docData.phoneNumber || "",
+          vehicleNumbers: docData.vehicleNumbers || [],
+        });
       } else {
+        console.error("No document found for user:", userData.email);
         toast.error("User profile data not found.");
       }
     } catch (error) {
-      toast.error("Failed to fetch additional profile data.");
+      console.error("Error fetching user data:", error);
+      toast.error("Failed to fetch profile data.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -110,13 +99,11 @@ const Profile = ({ userData, userRole, updateUserProfile }) => {
         }
       }
 
-      // Remove address from editedData
-      const { address, ...dataToUpdate } = editedData;
-
-      await updateUserProfile(dataToUpdate);
-
+      await updateUserProfile(editedData);
       setIsEditing(false);
       toast.success("Profile updated successfully!");
+      // Fetch updated data
+      await fetchUserData();
     } catch (error) {
       toast.error(`Failed to update profile: ${error.message}`);
     }
