@@ -11,6 +11,8 @@ import {
   setDoc,
   query,
   where,
+  writeBatch,
+  arrayUnion,
 } from "firebase/firestore";
 import { db, storage, auth } from "../../services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -260,35 +262,42 @@ const MallLocations = ({ userRole }) => {
     }
 
     try {
-      const locationRef = doc(
-        db,
-        `mallChains/${mallChainId}/locations`,
-        selectedLocationId
-      );
-      await updateDoc(locationRef, { mallOwnerId: selectedMallOwner.id });
+      const batch = writeBatch(db);
 
+      // Update all selected locations
+      for (const locationId of selectedLocations) {
+        const locationRef = doc(
+          db,
+          `mallChains/${mallChainId}/locations`,
+          locationId
+        );
+        batch.update(locationRef, { mallOwnerId: selectedMallOwner.id });
+      }
+
+      // Update the mall owner's document
       const mallOwnerRef = doc(
         db,
-        `platform_users/mallOwner/mallOwner/${selectedMallOwner.id}`
+        "platform_users",
+        "mallOwner",
+        "mallOwner",
+        selectedMallOwner.id
       );
-      const mallOwnerDoc = await getDoc(mallOwnerRef);
-      const existingAssignedLocations =
-        mallOwnerDoc.data().assignedLocations || [];
-
-      const updatedAssignedLocations = [
-        ...existingAssignedLocations,
-        { locationId: selectedLocationId, mallChainId },
-      ];
-
-      await updateDoc(mallOwnerRef, {
-        assignedLocations: updatedAssignedLocations,
-        role: "mallOwner",
+      batch.update(mallOwnerRef, {
+        assignedLocations: arrayUnion(
+          ...selectedLocations.map((id) => ({
+            mallChainId,
+            locationId: id,
+          }))
+        ),
       });
 
-      toast.success("Mall owner assigned successfully");
+      await batch.commit();
+
+      toast.success(
+        `Mall owner assigned to ${selectedLocations.length} location(s) successfully`
+      );
       setShowAssignModal(false);
-      setSelectedLocationId(null);
-      setSelectedMallOwner(null);
+      setSelectedLocations([]);
       fetchMallChainAndLocations();
     } catch (error) {
       console.error("Error assigning mall owner:", error);
