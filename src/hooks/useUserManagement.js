@@ -42,16 +42,25 @@ const useUserManagement = (userRole, currentUserEmail, updateUser) => {
       for (const role of roles) {
         const usersCollection = collection(db, "platform_users", role, role);
         const querySnapshot = await getDocs(usersCollection);
-        const users = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          role,
-        }));
+        const users = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            email: data.email,
+            firstName: data.firstName || "Not provided",
+            lastName: data.lastName || "Not provided",
+            phoneNumber: data.phoneNumber || "Not provided",
+            role: role,
+            // Add any other fields you expect to have
+          };
+        });
         allUsers = [...allUsers, ...users];
       }
 
+      console.log("Fetched users:", allUsers); // Add this line for debugging
       setDisplayUsers(allUsers);
     } catch (error) {
+      console.error("Error fetching users:", error);
       toast.error("Failed to fetch users");
     } finally {
       setIsLoading(false);

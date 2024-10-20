@@ -90,8 +90,11 @@ const Users = ({ userRole, currentUserEmail, updateUser }) => {
     >
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800">{`${user.firstName} ${user.lastName}`}</h3>
+          <h3 className="text-lg font-semibold text-gray-800">
+            {`${user.firstName} ${user.lastName}`}
+          </h3>
           <p className="text-sm text-gray-600">{user.email}</p>
+          <p className="text-sm text-gray-600">Phone: {user.phoneNumber}</p>
         </div>
         <span
           className={`px-2 py-1 text-xs font-semibold text-white rounded-full ${getRoleColor(
