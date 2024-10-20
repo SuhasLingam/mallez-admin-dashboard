@@ -10,7 +10,6 @@ import {
   setDoc,
   deleteDoc,
   where,
-  getDoc,
   updateDoc,
 } from "firebase/firestore";
 import {
@@ -21,92 +20,52 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
-import { Route, Routes, useNavigate } from "react-router-dom";
+import { Route, Routes, useNavigate, Navigate } from "react-router-dom";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+// Import components (unchanged)
 import Dashboard from "./components/dashboard/Dashboard";
 import Users from "./components/users/Users";
 import Sidebar from "./components/common/Sidebar";
 import Header from "./components/common/Header";
 import Login from "./components/auth/Login";
 import Profile from "./components/users/Profile";
-import { firebaseConfig } from "./services/firebaseService";
 import LoadingSpinner from "./components/common/LoadingSpinner";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 import UnauthorizedModal from "./components/common/UnauthorizedModal";
-import ToastManager from "./utils/ToastManager";
 import MallChains from "./components/mallManagement/MallChains";
 import MallDetails from "./components/mallManagement/MallDetails";
 import MallLocations from "./components/mallManagement/MallLocations";
 import LocationDetails from "./components/mallManagement/LocationDetails";
-import { db, auth } from "./services/firebaseService";
 import MallOwnerDashboard from "./components/mallOwner/MallOwnerDashboard";
 import MallOwnerLocationDetails from "./components/mallOwner/MallOwnerLocationDetails";
+
+// Import services and utilities
+import { firebaseConfig, db, auth } from "./services/firebaseService";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const googleProvider = new GoogleAuthProvider();
 
-function App() {
+// Custom hook for authentication
+const useAuth = () => {
   const [user, setUser] = useState(null);
-  const [adminData, setAdminData] = useState([]);
-  const [mallOwnerData, setMallOwnerData] = useState([]);
-  const [userData, setUserData] = useState([]);
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [authError, setAuthError] = useState(null);
-  const [isUnauthorizedModalOpen, setIsUnauthorizedModalOpen] = useState(false);
   const navigate = useNavigate();
-  const [isUserDataLoaded, setIsUserDataLoaded] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (userRole === "admin") {
-      document.title = "Admin Dashboard";
-    } else if (userRole === "mallOwner") {
-      document.title = "Mall Owner Dashboard";
-    } else {
-      document.title = "Dashboard";
-    }
-  }, [userRole]);
 
   const handleAuthStateChange = async (currentUser) => {
     if (currentUser) {
       try {
         const role = await determineUserRole(currentUser);
         if (role === "user" || role === null) {
-          await signOut(auth);
-          setUser(null);
-          setUserRole(null);
-          resetUserData();
-          setAuthError("You are not authorized to access this dashboard.");
-          setIsUnauthorizedModalOpen(true);
-          toast.error("Unauthorized access. You have been signed out.", {
-            toastId: "unauthorized-signout",
-          });
+          await handleUnauthorizedAccess();
         } else {
-          setUser(currentUser);
-          setUserRole(role);
-          await fetchUserData(role, currentUser.email);
-          toast.success(`Welcome, ${currentUser.email}!`, {
-            toastId: "welcome-user",
-          });
+          await handleAuthorizedAccess(currentUser, role);
         }
       } catch (error) {
-        toast.error(
-          "An error occurred while accessing your account. Please try again later.",
-          {
-            toastId: "auth-state-change-error",
-          }
-        );
-        await signOut(auth);
-        setUser(null);
-        setUserRole(null);
-        resetUserData();
+        await handleAuthError();
       }
     } else {
       resetUserData();
@@ -114,101 +73,65 @@ function App() {
     setLoading(false);
   };
 
-  const resetUserData = () => {
-    setAdminData([]);
-    setMallOwnerData([]);
+  const handleUnauthorizedAccess = async () => {
+    await signOut(auth);
+    setUser(null);
     setUserRole(null);
-    setUserData([]);
+    setAuthError("You are not authorized to access this dashboard.");
+    toast.error("Unauthorized access. You have been signed out.", {
+      toastId: "unauthorized-signout",
+    });
+  };
+
+  const handleAuthorizedAccess = async (currentUser, role) => {
+    setUser(currentUser);
+    setUserRole(role);
+    toast.success(`Welcome, ${currentUser.email}!`, {
+      toastId: "welcome-user",
+    });
+  };
+
+  const handleAuthError = async () => {
+    toast.error(
+      "An error occurred while accessing your account. Please try again later.",
+      { toastId: "auth-state-change-error" }
+    );
+    await signOut(auth);
+    setUser(null);
+    setUserRole(null);
+  };
+
+  const resetUserData = () => {
+    setUser(null);
+    setUserRole(null);
   };
 
   const determineUserRole = async (currentUser) => {
-    try {
-      const adminRole = await checkUserRole(
-        currentUser.email,
-        "admin",
-        "admin"
-      );
-      if (adminRole) return "admin";
+    const adminRole = await checkUserRole(currentUser.email, "admin", "admin");
+    if (adminRole) return "admin";
 
-      const mallOwnerRole = await checkUserRole(
-        currentUser.email,
-        "mallOwner",
-        "mallOwner"
-      );
-      if (mallOwnerRole) return "mallOwner";
+    const mallOwnerRole = await checkUserRole(
+      currentUser.email,
+      "mallOwner",
+      "mallOwner"
+    );
+    if (mallOwnerRole) return "mallOwner";
 
-      return null;
-    } catch (error) {
-      throw error;
-    }
+    return null;
   };
 
   const checkUserRole = async (email, role, subCollection) => {
-    try {
-      const q = query(
-        collection(db, "platform_users", role, subCollection),
-        where("email", "==", email)
-      );
-      const snapshot = await getDocs(q);
-      return !snapshot.empty;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const fetchUserData = async () => {
-    try {
-      const roles = ["admin", "mallOwner", "user"];
-      let allUsers = [];
-
-      for (const role of roles) {
-        const usersCollection = collection(db, "platform_users", role, role);
-        const querySnapshot = await getDocs(usersCollection);
-        const users = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          role,
-        }));
-        allUsers = [...allUsers, ...users];
-      }
-
-      setAdminData(allUsers.filter((user) => user.role === "admin"));
-      setMallOwnerData(allUsers.filter((user) => user.role === "mallOwner"));
-      setUserData(allUsers.filter((user) => user.role === "user"));
-
-      setIsUserDataLoaded(true);
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-      toast.error("Failed to fetch user data. Please try again.");
-    }
-  };
-
-  const fetchCollectionData = async (collectionName, setDataFunction) => {
-    try {
-      const snapshot = await getDocs(collection(db, collectionName));
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setDataFunction(data);
-    } catch (error) {
-      // Error handling remains
-    }
-  };
-
-  const fetchMallOwnerData = async (userEmail) => {
     const q = query(
-      collection(db, "mallOwners"),
-      where("email", "==", userEmail)
+      collection(db, "platform_users", role, subCollection),
+      where("email", "==", email)
     );
     const snapshot = await getDocs(q);
-    if (!snapshot.empty) {
-      const mallOwnerDoc = snapshot.docs[0];
-      setMallOwnerData([{ id: mallOwnerDoc.id, ...mallOwnerDoc.data() }]);
-    }
+    return !snapshot.empty;
   };
 
   const handleLogin = async (email, password) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Toast is not needed here as it will be shown in handleAuthStateChange
     } catch (error) {
       toast.error("Invalid email or password");
     }
@@ -222,16 +145,10 @@ function App() {
       const user = result.user;
       const role = await determineUserRole(user);
       if (role === "user" || role === null) {
-        await signOut(auth);
-        setAuthError("You are not authorized to access this dashboard.");
-        setIsUnauthorizedModalOpen(true);
-        toast.error("You are not authorized to access this dashboard.");
+        await handleUnauthorizedAccess();
       } else {
-        setUser(user);
-        setUserRole(role);
-        await fetchUserData(role, user.email);
+        await handleAuthorizedAccess(user, role);
         navigate("/");
-        toast.success(`Welcome, ${user.email}!`);
       }
     } catch (error) {
       toast.error("An error occurred during Google Sign-In. Please try again.");
@@ -240,48 +157,59 @@ function App() {
     }
   };
 
-  const addNewUser = async (
-    email,
-    role,
-    firstName,
-    lastName,
-    vehicleNumber
-  ) => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      resetUserData();
+      navigate("/");
+      toast.info("You have been logged out.");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast.error("An error occurred while signing out. Please try again.");
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
+    return () => unsubscribe();
+  }, []);
+
+  return {
+    user,
+    userRole,
+    loading,
+    authError,
+    handleLogin,
+    handleGoogleSignIn,
+    handleLogout,
+  };
+};
+
+// User management utility
+const userManagement = {
+  addNewUser: async (email, role, firstName, lastName, vehicleNumber) => {
     try {
       const newUserData = { email, firstName, lastName, role };
       if (role === "user") newUserData.vehicleNumber = vehicleNumber;
 
-      let collectionPath;
-      if (role === "admin") {
-        collectionPath = "platform_users/admin/admin";
-      } else if (role === "mallOwner") {
-        collectionPath = "platform_users/mallOwner/mallOwner";
-      } else {
-        collectionPath = "platform_users/user/user";
-      }
-
+      const collectionPath = `platform_users/${role}/${role}`;
       const docRef = await addDoc(collection(db, collectionPath), newUserData);
       console.log(
         `New ${role} added successfully at path: ${collectionPath}/${docRef.id}`
       );
-      alert(`New ${role} added successfully`);
-      fetchUserData(userRole, user.email);
+      toast.success(`New ${role} added successfully`);
       return docRef.id;
     } catch (error) {
       console.error(`Error adding new ${role}:`, error);
-      alert(`Error adding new ${role}: ${error.message}`);
+      toast.error(`Error adding new ${role}: ${error.message}`);
     }
-  };
+  },
 
-  const updateUser = async (id, oldRole, updatedData) => {
+  updateUser: async (id, oldRole, updatedData) => {
     try {
       const newRole = updatedData.role;
+      await deleteDoc(doc(db, "platform_users", oldRole, oldRole, id));
 
-      // Delete the old document
-      const oldDocRef = doc(db, "platform_users", oldRole, oldRole, id);
-      await deleteDoc(oldDocRef);
-
-      // Check if a user with the same email already exists in any role
       const roles = ["admin", "mallOwner", "user"];
       for (const role of roles) {
         if (role !== newRole) {
@@ -292,135 +220,158 @@ function App() {
             )
           );
           if (!querySnapshot.empty) {
-            // If a document with the same email exists, delete it
-            const existingDoc = querySnapshot.docs[0];
             await deleteDoc(
-              doc(db, "platform_users", role, role, existingDoc.id)
+              doc(db, "platform_users", role, role, querySnapshot.docs[0].id)
             );
           }
         }
       }
 
-      // Create a new document in the new role's collection
-      const newDocRef = doc(db, "platform_users", newRole, newRole, id);
-      await setDoc(newDocRef, { ...updatedData, id });
-
-      // Fetch updated user data
-      await fetchUserData();
+      await setDoc(doc(db, "platform_users", newRole, newRole, id), {
+        ...updatedData,
+        id,
+      });
     } catch (error) {
       throw error;
     }
-  };
+  },
 
-  const deleteUser = async (id, role) => {
+  updateUserProfile: async (userRole, userEmail, updatedData) => {
     try {
-      const collectionName =
-        role === "admin"
-          ? "admins"
-          : role === "mallOwner"
-          ? "mallOwners"
-          : "users";
-      const docRef = doc(db, collectionName, id);
-      await deleteDoc(docRef);
-      alert("User deleted successfully");
-      fetchUserData(userRole, user.email);
-    } catch (error) {
-      console.error("Error deleting user:", error);
-    }
-  };
+      const collectionName = "platform_users";
+      const q = query(
+        collection(db, collectionName, userRole, userRole),
+        where("email", "==", userEmail)
+      );
+      const querySnapshot = await getDocs(q);
 
-  const createNewUser = async (userData) => {
-    if (userRole !== "admin") {
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "users"), userData);
-      // Optionally, update your UI or state to reflect the new user
-    } catch (error) {
-      // Handle the error (e.g., show an error message to the user)
-    }
-  };
-
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const updateUserProfile = async (updatedData) => {
-    try {
-      let userDocRef;
-      let collectionName;
-
-      if (userRole === "admin") {
-        collectionName = "platform_users";
-        userDocRef = doc(
-          db,
-          collectionName,
-          "admin",
-          "admin",
-          "TzHqb42NVOpDazYD1Igx"
-        );
-      } else if (userRole === "mallOwner") {
-        collectionName = "platform_users";
-        // First, query the collection to find the document with matching email
-        const q = query(
-          collection(db, collectionName, "mallOwner", "mallOwner"),
-          where("email", "==", user.email)
-        );
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          throw new Error(`No ${userRole} found with email ${user.email}`);
-        }
-
-        // Use the first matching document's ID
-        userDocRef = doc(
-          db,
-          collectionName,
-          "mallOwner",
-          "mallOwner",
-          querySnapshot.docs[0].id
-        );
-      } else {
-        throw new Error(`Invalid user role: ${userRole}`);
+      if (querySnapshot.empty) {
+        throw new Error(`No ${userRole} found with email ${userEmail}`);
       }
 
+      const userDocRef = doc(
+        db,
+        collectionName,
+        userRole,
+        userRole,
+        querySnapshot.docs[0].id
+      );
       await updateDoc(userDocRef, updatedData);
-
-      // Update local state
-      if (userRole === "admin") {
-        setAdminData([{ ...adminData[0], ...updatedData }]);
-      } else if (userRole === "mallOwner") {
-        setMallOwnerData([{ ...mallOwnerData[0], ...updatedData }]);
-      }
+      toast.success("Profile updated successfully");
     } catch (error) {
-      throw error;
+      console.error("Error updating profile:", error);
+      toast.error("Failed to update profile. Please try again.");
     }
-  };
+  },
+};
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setUser(null);
-      setUserRole(null);
-      resetUserData();
-      navigate("/");
-      toast.info("You have been logged out.");
-    } catch (error) {
-      console.error("Error signing out:", error);
-      toast.error("An error occurred while signing out. Please try again.");
-    }
-  };
+// Route definitions
+const ROUTES = {
+  admin: [
+    { path: "/", element: Dashboard },
+    { path: "/users", element: Users },
+    { path: "/mall-chains", element: MallChains },
+    { path: "/mall/:mallChainId", element: MallDetails },
+    { path: "/mall/:mallChainId/locations", element: MallLocations },
+    {
+      path: "/mall/:mallChainId/location/:locationId",
+      element: LocationDetails,
+    },
+  ],
+  mallOwner: [
+    { path: "/", element: Dashboard },
+    {
+      path: "/mall-statistics",
+      element: () => <div>Mall Statistics Page (To be implemented)</div>,
+    },
+    { path: "/mall-chains", element: MallChains },
+    { path: "/mall/:mallChainId", element: MallDetails },
+    { path: "/mall/:mallChainId/locations", element: MallLocations },
+    {
+      path: "/mall/:mallChainId/location/:locationId",
+      element: LocationDetails,
+    },
+    { path: "/mall-owner", element: MallOwnerDashboard },
+    { path: "/location/:locationId", element: MallOwnerLocationDetails },
+  ],
+};
 
-  const closeUnauthorizedModal = () => {
-    setIsUnauthorizedModalOpen(false);
-  };
+function App() {
+  const {
+    user,
+    userRole,
+    loading,
+    authError,
+    handleLogin,
+    handleGoogleSignIn,
+    handleLogout,
+  } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isUnauthorizedModalOpen, setIsUnauthorizedModalOpen] = useState(false);
+
+  useEffect(() => {
+    document.title =
+      userRole === "admin"
+        ? "Admin Dashboard"
+        : userRole === "mallOwner"
+        ? "Mall Owner Dashboard"
+        : "Dashboard";
+  }, [userRole]);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeUnauthorizedModal = () => setIsUnauthorizedModalOpen(false);
 
   const ProtectedRoute = ({ children, allowedRoles }) => {
     if (!user || !allowedRoles.includes(userRole)) {
       return <Navigate to="/login" replace />;
     }
     return children;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Login
+        onLogin={handleLogin}
+        onGoogleSignIn={handleGoogleSignIn}
+        authError={authError}
+      />
+    );
+  }
+
+  if (userRole === null) {
+    return (
+      <div>
+        Your account is not associated with any role. Please contact an
+        administrator.
+      </div>
+    );
+  }
+
+  const renderRoutes = () => {
+    const roleRoutes = ROUTES[userRole] || [];
+    return roleRoutes.map(({ path, element: Element }) => (
+      <Route
+        key={path}
+        path={path}
+        element={
+          <ProtectedRoute allowedRoles={[userRole]}>
+            <Element
+              userRole={userRole}
+              currentUserEmail={user.email}
+              updateUser={userManagement.updateUser}
+            />
+          </ProtectedRoute>
+        }
+      />
+    ));
   };
 
   return (
@@ -436,129 +387,42 @@ function App() {
         draggable
         pauseOnHover
       />
-      {loading ? (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-          <LoadingSpinner />
-        </div>
-      ) : !user ? (
-        <Login
-          onLogin={handleLogin}
-          onGoogleSignIn={handleGoogleSignIn}
-          authError={authError}
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar
+          userRole={userRole}
+          isOpen={isSidebarOpen}
+          toggleSidebar={toggleSidebar}
         />
-      ) : userRole === null ? (
-        <div>
-          Your account is not associated with any role. Please contact an
-          administrator.
-        </div>
-      ) : (
-        <div className="flex h-screen bg-gray-100">
-          <Sidebar
+        <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
+          <Header
+            user={user}
+            onLogout={handleLogout}
             userRole={userRole}
-            isOpen={isSidebarOpen}
             toggleSidebar={toggleSidebar}
           />
-          <div className="lg:ml-64 flex flex-col flex-1 overflow-hidden">
-            <Header
-              user={user}
-              onLogout={handleLogout}
-              userRole={userRole}
-              toggleSidebar={toggleSidebar}
-            />
-            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
-              <Routes>
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute allowedRoles={["admin", "mallOwner"]}>
-                      <Dashboard
-                        adminData={adminData}
-                        mallOwnerData={mallOwnerData}
-                        userRole={userRole}
-                        userData={userData}
-                      />
-                    </ProtectedRoute>
-                  }
-                />
-                {userRole === "admin" && (
-                  <Route
-                    path="/users"
-                    element={
-                      <ProtectedRoute allowedRoles={["admin"]}>
-                        <Users
-                          userRole={userRole}
-                          currentUserEmail={user.email}
-                          updateUser={updateUser}
-                        />
-                      </ProtectedRoute>
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+            <Routes>
+              {renderRoutes()}
+              <Route
+                path="/profile"
+                element={
+                  <Profile
+                    userData={user}
+                    userRole={userRole}
+                    updateUserProfile={(updatedData) =>
+                      userManagement.updateUserProfile(
+                        userRole,
+                        user.email,
+                        updatedData
+                      )
                     }
                   />
-                )}
-                {userRole === "mallOwner" && (
-                  <Route
-                    path="/mall-statistics"
-                    element={
-                      <div>Mall Statistics Page (To be implemented)</div>
-                    }
-                  />
-                )}
-                <Route
-                  path="/profile"
-                  element={
-                    isUserDataLoaded ? (
-                      <Profile
-                        userData={
-                          userRole === "admin"
-                            ? adminData[0]
-                            : userRole === "mallOwner"
-                            ? mallOwnerData[0]
-                            : null
-                        }
-                        userRole={userRole}
-                        updateUserProfile={updateUserProfile}
-                      />
-                    ) : (
-                      <div>Loading user data...</div>
-                    )
-                  }
-                />
-                {(userRole === "admin" || userRole === "mallOwner") && (
-                  <>
-                    <Route
-                      path="/mall-chains"
-                      element={<MallChains userRole={userRole} />}
-                    />
-                    <Route
-                      path="/mall/:mallChainId"
-                      element={<MallDetails userRole={userRole} />}
-                    />
-                    <Route
-                      path="/mall/:mallChainId/locations"
-                      element={<MallLocations userRole={userRole} />}
-                    />
-                    <Route
-                      path="/mall/:mallChainId/location/:locationId"
-                      element={<LocationDetails userRole={userRole} />}
-                    />
-                  </>
-                )}
-                {userRole === "mallOwner" && (
-                  <>
-                    <Route
-                      path="/mall-owner"
-                      element={<MallOwnerDashboard />}
-                    />
-                    <Route
-                      path="/location/:locationId"
-                      element={<MallOwnerLocationDetails />}
-                    />
-                  </>
-                )}
-              </Routes>
-            </main>
-          </div>
+                }
+              />
+            </Routes>
+          </main>
         </div>
-      )}
+      </div>
       <UnauthorizedModal
         isOpen={isUnauthorizedModalOpen}
         onClose={closeUnauthorizedModal}
