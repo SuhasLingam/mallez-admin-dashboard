@@ -8,6 +8,7 @@ import {
   FaChevronRight,
   FaTimes,
   FaBuilding,
+  FaFilm,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -23,6 +24,11 @@ const Sidebar = ({ userRole, isOpen, toggleSidebar }) => {
             path: "/mall-chains",
             label: "Mall Chains",
             icon: <FaBuilding />,
+          },
+          {
+            path: "/theater-chains",
+            label: "Theater Chains",
+            icon: <FaFilm />,
           },
         ]
       : []),
