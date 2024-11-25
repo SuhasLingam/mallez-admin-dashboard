@@ -71,7 +71,7 @@ const TheaterLocationDetails = ({ userRole }) => {
     movie: {
       movieName: "",
       imageUrl: "",
-      showTimes: [{ time: "", screen: "", price: 0 }],
+      showTimes: [{ time: "", screen: "" }],
     },
     concession: {
       name: "",
@@ -208,7 +208,7 @@ const TheaterLocationDetails = ({ userRole }) => {
       [type]: {
         ...item,
         features: item.features || [],
-        showTimes: item.showTimes || [{ time: "", screen: "", price: 0 }],
+        showTimes: item.showTimes || [{ time: "", screen: "" }],
         variants: item.variants || [],
       },
     });
@@ -314,7 +314,6 @@ const TheaterLocationDetails = ({ userRole }) => {
           showTimes: newItem.movie.showTimes.map((st) => ({
             time: st.time || "",
             screen: st.screen || "",
-            price: parseFloat(st.price) || 0,
           })),
         };
       }
@@ -356,7 +355,7 @@ const TheaterLocationDetails = ({ userRole }) => {
       movie: {
         movieName: "",
         imageUrl: "",
-        showTimes: [{ time: "", screen: "", price: 0 }],
+        showTimes: [{ time: "", screen: "" }],
       },
       concession: {
         name: "",
@@ -572,7 +571,7 @@ const TheaterLocationDetails = ({ userRole }) => {
 
       <FormField
         label="Show Times"
-        tooltip="Add multiple show times with screen and price details"
+        tooltip="Add multiple show times with screen details"
       >
         <div className="space-y-3">
           {(newItem.movie.showTimes || []).map((showTime, index) => (
@@ -590,7 +589,7 @@ const TheaterLocationDetails = ({ userRole }) => {
                 }}
                 className="focus:ring-2 focus:ring-blue-500 flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm"
               />
-              <select
+              {/* <select
                 value={showTime.screen}
                 onChange={(e) => {
                   const newShowTimes = [...newItem.movie.showTimes];
@@ -608,26 +607,7 @@ const TheaterLocationDetails = ({ userRole }) => {
                     {screen.name}
                   </option>
                 ))}
-              </select>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={showTime.price}
-                onChange={(e) => {
-                  const newShowTimes = [...newItem.movie.showTimes];
-                  newShowTimes[index] = {
-                    ...showTime,
-                    price: parseFloat(e.target.value) || 0,
-                  };
-                  setNewItem({
-                    ...newItem,
-                    movie: { ...newItem.movie, showTimes: newShowTimes },
-                  });
-                }}
-                className="focus:ring-2 focus:ring-blue-500 w-24 px-4 py-2 border border-gray-300 rounded-md shadow-sm"
-                placeholder="Price"
-              />
+              </select> */}
               <button
                 type="button"
                 onClick={() => {
@@ -639,7 +619,7 @@ const TheaterLocationDetails = ({ userRole }) => {
                     movie: { ...newItem.movie, showTimes: newShowTimes },
                   });
                 }}
-                className="hover:text-red-800 hover:bg-red-100 p-2 text-red-600 rounded-full"
+                className="hover:bg-red-100 hover:text-red-800 p-2 text-red-600 transition-colors rounded-full"
               >
                 <FaTrash />
               </button>
@@ -654,7 +634,7 @@ const TheaterLocationDetails = ({ userRole }) => {
                   ...newItem.movie,
                   showTimes: [
                     ...newItem.movie.showTimes,
-                    { time: "", screen: "", price: 0 },
+                    { time: "", screen: "" },
                   ],
                 },
               });
@@ -670,14 +650,14 @@ const TheaterLocationDetails = ({ userRole }) => {
         <button
           type="button"
           onClick={handleCloseModal}
-          className="hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md"
+          className="hover:bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md"
           disabled={isLoading}
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md"
+          className="hover:bg-blue-700 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -769,7 +749,7 @@ const TheaterLocationDetails = ({ userRole }) => {
             <div className="flex justify-end mb-4">
               <button
                 onClick={() => handleAddItem("movie")}
-                className="hover:bg-blue-600 flex items-center px-4 py-2 text-white bg-blue-500 rounded-md"
+                className="hover:bg-blue-600 hover:shadow-lg flex items-center px-6 py-3 text-white transition-all duration-200 bg-blue-500 rounded-md shadow-md"
               >
                 <FaPlus className="mr-2" /> Add Movie
               </button>
@@ -778,46 +758,53 @@ const TheaterLocationDetails = ({ userRole }) => {
               {currentMovies.map((movie) => (
                 <div
                   key={movie.id}
-                  className="overflow-hidden bg-white rounded-lg shadow-md"
+                  className="group hover:shadow-xl hover:-translate-y-1 overflow-hidden transition-all duration-300 transform bg-white rounded-lg shadow-md"
                 >
-                  <div className="relative h-48">
-                    <img
-                      src={movie.imageUrl}
-                      alt={movie.movieName}
-                      className="object-cover w-full h-full"
-                    />
-                    <div className="top-2 right-2 absolute flex space-x-2">
+                  <div className="relative h-64">
+                    {movie.imageUrl ? (
+                      <img
+                        src={movie.imageUrl}
+                        alt={movie.movieName}
+                        className="group-hover:scale-105 object-cover w-full h-full transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center w-full h-full bg-gray-100">
+                        <FaFilm className="text-4xl text-gray-300" />
+                      </div>
+                    )}
+                    <div className="top-2 right-2 group-hover:opacity-100 absolute flex space-x-2 transition-opacity duration-200 opacity-0">
                       <button
                         onClick={() => handleEditItem("movie", movie)}
-                        className="hover:bg-blue-700 p-2 text-white bg-blue-600 rounded-full"
+                        className="hover:bg-blue-600 p-2 text-white transition-colors bg-blue-500 rounded-full shadow-lg"
                       >
                         <FaEdit />
                       </button>
                       <button
                         onClick={() => handleDeleteItem("movie", movie.id)}
-                        className="hover:bg-red-700 p-2 text-white bg-red-600 rounded-full"
+                        className="hover:bg-red-600 p-2 text-white transition-colors bg-red-500 rounded-full shadow-lg"
                       >
                         <FaTrash />
                       </button>
                     </div>
                   </div>
-                  <div className="p-4">
-                    <h3 className="mb-2 text-lg font-semibold">
+                  <div className="p-6">
+                    <h3 className="mb-3 text-xl font-semibold text-gray-900">
                       {movie.movieName}
                     </h3>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {movie.showTimes?.map((showTime, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between"
+                          className="bg-gray-50 flex items-center justify-between p-2 rounded-lg"
                         >
-                          <span className="text-gray-600">{showTime.time}</span>
-                          <span className="text-gray-600">
-                            Screen: {showTime.screen}
-                          </span>
-                          <span className="text-green-600">
-                            ₹{showTime.price}
-                          </span>
+                          <div className="flex items-center space-x-3">
+                            <span className="px-3 py-1 text-sm font-medium text-blue-800 bg-blue-100 rounded-full">
+                              {showTime.time}
+                            </span>
+                            <span className="text-gray-600">
+                              Screen: {showTime.screen}
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -825,6 +812,18 @@ const TheaterLocationDetails = ({ userRole }) => {
                 </div>
               ))}
             </div>
+
+            {currentMovies.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <FaFilm className="mb-4 text-5xl text-gray-300" />
+                <p className="mb-2 text-xl font-medium text-gray-600">
+                  No movies found
+                </p>
+                <p className="text-gray-500">
+                  Start by adding some movies to this location
+                </p>
+              </div>
+            )}
           </>
         );
       case "concessions":
