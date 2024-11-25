@@ -9,6 +9,10 @@ import {
   doc,
   getDoc,
   setDoc,
+  writeBatch,
+  arrayUnion,
+  query,
+  where,
 } from "firebase/firestore";
 import { db, storage, auth } from "../../services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -20,6 +24,8 @@ import {
   FaUpload,
   FaFilm,
   FaChevronRight,
+  FaUserPlus,
+  FaUserMinus,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,10 +46,22 @@ const TheaterLocations = ({ userRole }) => {
   const [imageFile, setImageFile] = useState(null);
   const [editingLocation, setEditingLocation] = useState(null);
   const [error, setError] = useState(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState(null);
+  const [mallOwners, setMallOwners] = useState([]);
+  const [selectedMallOwner, setSelectedMallOwner] = useState(null);
+  const [assignedMallOwners, setAssignedMallOwners] = useState({});
+  const [assignedMallOwnerDetails, setAssignedMallOwnerDetails] = useState({});
 
   useEffect(() => {
     fetchTheaterChainAndLocations();
   }, [theaterChainId]);
+
+  useEffect(() => {
+    if (userRole === "admin") {
+      fetchMallOwners();
+    }
+  }, [userRole]);
 
   const fetchTheaterChainAndLocations = async () => {
     setIsLoading(true);
@@ -66,6 +84,25 @@ const TheaterLocations = ({ userRole }) => {
         id: doc.id,
         ...doc.data(),
       }));
+
+      const ownerDetailsPromises = locationsData
+        .filter((location) => location.mallOwnerId)
+        .map(async (location) => {
+          const ownerDetails = await fetchMallOwnerDetails(
+            location.mallOwnerId
+          );
+          return { locationId: location.id, ownerDetails };
+        });
+
+      const ownerDetails = await Promise.all(ownerDetailsPromises);
+      const ownerDetailsMap = {};
+      ownerDetails.forEach(({ locationId, ownerDetails }) => {
+        if (ownerDetails) {
+          ownerDetailsMap[locationId] = ownerDetails;
+        }
+      });
+
+      setAssignedMallOwnerDetails(ownerDetailsMap);
       setLocations(locationsData);
     } catch (error) {
       console.error("Error fetching theater chain and locations:", error);
@@ -73,6 +110,37 @@ const TheaterLocations = ({ userRole }) => {
       toast.error("Failed to fetch theater chain and locations");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchMallOwners = async () => {
+    try {
+      const usersRef = collection(db, "platform_users/mallOwner/mallOwner");
+      const q = query(usersRef, where("role", "==", "mallOwner"));
+      const querySnapshot = await getDocs(q);
+      const owners = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setMallOwners(owners);
+    } catch (error) {
+      console.error("Error fetching mall owners:", error);
+      toast.error("Failed to fetch mall owners");
+    }
+  };
+
+  const fetchMallOwnerDetails = async (mallOwnerId) => {
+    try {
+      const mallOwnerDoc = await getDoc(
+        doc(db, "platform_users/mallOwner/mallOwner", mallOwnerId)
+      );
+      if (mallOwnerDoc.exists()) {
+        return mallOwnerDoc.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching mall owner details:", error);
+      return null;
     }
   };
 
@@ -234,6 +302,149 @@ const TheaterLocations = ({ userRole }) => {
     setIsModalOpen(true);
   };
 
+  const handleAssignMallOwner = (locationId) => {
+    setSelectedLocationId(locationId);
+    setShowAssignModal(true);
+  };
+
+  const assignMallOwner = async () => {
+    if (!selectedMallOwner) {
+      toast.error("Please select a mall owner");
+      return;
+    }
+
+    try {
+      console.log("Starting assignment process...");
+      console.log("Selected location:", selectedLocationId);
+      console.log("Selected mall owner:", selectedMallOwner);
+
+      const batch = writeBatch(db);
+
+      // Update the location with mall owner ID
+      const locationRef = doc(
+        db,
+        `theaterChains/${theaterChainId}/locations`,
+        selectedLocationId
+      );
+
+      // Get the location data first
+      const locationDoc = await getDoc(locationRef);
+      const locationData = locationDoc.data();
+
+      batch.update(locationRef, {
+        mallOwnerId: selectedMallOwner.id,
+        name: locationData.name, // Include these to ensure we have complete data
+        address: locationData.address,
+        imageUrl: locationData.imageUrl,
+      });
+
+      // Update the mall owner's document
+      const mallOwnerRef = doc(
+        db,
+        "platform_users/mallOwner/mallOwner",
+        selectedMallOwner.id
+      );
+
+      // Get current assignments first
+      const mallOwnerDoc = await getDoc(mallOwnerRef);
+      const currentAssignments =
+        mallOwnerDoc.data().assignedTheaterLocations || [];
+
+      // Check if this location is already assigned
+      const isAlreadyAssigned = currentAssignments.some(
+        (loc) =>
+          loc.locationId === selectedLocationId &&
+          loc.theaterChainId === theaterChainId
+      );
+
+      if (!isAlreadyAssigned) {
+        // Add the new assignment
+        batch.update(mallOwnerRef, {
+          assignedTheaterLocations: arrayUnion({
+            theaterChainId,
+            locationId: selectedLocationId,
+            locationName: locationData.name,
+            chainName: theaterChain.title,
+          }),
+        });
+      }
+
+      console.log("About to commit batch with assignments");
+      await batch.commit();
+      console.log("Batch committed successfully");
+
+      console.log("Assignment completed. Verifying location data...");
+      const verifyLocation = await getDoc(
+        doc(db, `theaterChains/${theaterChainId}/locations`, selectedLocationId)
+      );
+      console.log("Updated location data:", verifyLocation.data());
+
+      toast.success("Mall owner assigned successfully");
+      setShowAssignModal(false);
+      setSelectedLocationId(null);
+      fetchTheaterChainAndLocations();
+    } catch (error) {
+      console.error("Error assigning mall owner:", error);
+      toast.error("Failed to assign mall owner");
+    }
+  };
+
+  const handleUnassignMallOwner = async (locationId) => {
+    if (
+      window.confirm(
+        "Are you sure you want to unassign the mall owner from this location?"
+      )
+    ) {
+      try {
+        const locationRef = doc(
+          db,
+          `theaterChains/${theaterChainId}/locations`,
+          locationId
+        );
+        const locationDoc = await getDoc(locationRef);
+
+        if (locationDoc.exists()) {
+          const locationData = locationDoc.data();
+          const mallOwnerId = locationData.mallOwnerId;
+
+          if (mallOwnerId) {
+            const mallOwnerRef = doc(
+              db,
+              `platform_users/mallOwner/mallOwner/${mallOwnerId}`
+            );
+            const mallOwnerDoc = await getDoc(mallOwnerRef);
+
+            if (mallOwnerDoc.exists()) {
+              const mallOwnerData = mallOwnerDoc.data();
+              const updatedAssignedLocations = (
+                mallOwnerData.assignedTheaterLocations || []
+              ).filter(
+                (loc) =>
+                  !(
+                    loc.theaterChainId === theaterChainId &&
+                    loc.locationId === locationId
+                  )
+              );
+
+              await updateDoc(mallOwnerRef, {
+                assignedTheaterLocations: updatedAssignedLocations,
+              });
+            }
+
+            await updateDoc(locationRef, { mallOwnerId: null });
+            toast.success("Mall owner unassigned successfully");
+            fetchTheaterChainAndLocations();
+          } else {
+            toast.warn("This location doesn't have an assigned mall owner");
+          }
+        }
+      } catch (error) {
+        console.error("Error unassigning mall owner:", error);
+        toast.error("Failed to unassign mall owner");
+      }
+    }
+  };
+
   const filteredLocations = locations.filter(
     (location) =>
       location?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -276,28 +487,65 @@ const TheaterLocations = ({ userRole }) => {
                 </span>
               ))}
             </div>
-            <div className="flex justify-between">
-              <Link
-                to={`/theater/${theaterChainId}/location/${location.id}`}
-                className="hover:bg-blue-600 px-4 py-2 text-white transition-colors bg-blue-500 rounded"
-              >
-                View Details
-              </Link>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleEdit(location)}
-                  className="hover:text-blue-700 p-2 text-blue-500 transition-colors"
-                >
-                  <FaEdit />
-                </button>
-                <button
-                  onClick={() => handleDelete(location.id)}
-                  className="hover:text-red-700 p-2 text-red-500 transition-colors"
-                >
-                  <FaTrash />
-                </button>
+
+            <Link
+              to={`/theater/${theaterChainId}/location/${location.id}`}
+              className="hover:bg-blue-600 block w-full px-4 py-2 mb-3 text-center text-white transition-colors bg-blue-500 rounded-md shadow-sm"
+            >
+              View Details
+            </Link>
+
+            {userRole === "admin" && (
+              <div className="flex flex-col space-y-2">
+                <div className="flex justify-between mb-2">
+                  <button
+                    onClick={() => handleEdit(location)}
+                    className="hover:bg-blue-50 flex items-center px-3 py-1.5 text-blue-600 transition-colors rounded-md"
+                  >
+                    <FaEdit className="mr-1.5" /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(location.id)}
+                    className="hover:bg-red-50 flex items-center px-3 py-1.5 text-red-600 transition-colors rounded-md"
+                  >
+                    <FaTrash className="mr-1.5" /> Delete
+                  </button>
+                </div>
+
+                <div className="sm:flex-row sm:space-x-2 sm:space-y-0 flex flex-col space-y-2">
+                  <button
+                    onClick={() => handleAssignMallOwner(location.id)}
+                    className="hover:bg-green-600 focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex items-center justify-center flex-1 px-4 py-2 text-sm font-medium text-white transition-colors bg-green-500 rounded-md shadow-sm"
+                  >
+                    <FaUserPlus className="mr-1.5" />
+                    <span>Assign Mall Owner</span>
+                  </button>
+                  <button
+                    onClick={() => handleUnassignMallOwner(location.id)}
+                    className="hover:bg-red-600 focus:ring-2 focus:ring-red-500 focus:ring-offset-1 flex items-center justify-center flex-1 px-4 py-2 text-sm font-medium text-white transition-colors bg-red-500 rounded-md shadow-sm"
+                  >
+                    <FaUserMinus className="mr-1.5" />
+                    <span>Unassign Owner</span>
+                  </button>
+                </div>
+
+                {location.mallOwnerId && (
+                  <div className="bg-gray-50 p-2 mt-2 rounded-md">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Assigned to:</span>{" "}
+                      {assignedMallOwnerDetails[location.id] ? (
+                        <>
+                          {assignedMallOwnerDetails[location.id].firstName}{" "}
+                          {assignedMallOwnerDetails[location.id].lastName}
+                        </>
+                      ) : (
+                        "Loading..."
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
         </motion.div>
       ))}
@@ -419,7 +667,7 @@ const TheaterLocations = ({ userRole }) => {
                       <img
                         src={URL.createObjectURL(imageFile)}
                         alt="Preview"
-                        className="h-32 object-cover rounded"
+                        className="object-cover h-32 rounded"
                       />
                     </div>
                   )}
@@ -440,6 +688,67 @@ const TheaterLocations = ({ userRole }) => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  const renderAssignModal = () => (
+    <AnimatePresence>
+      {showAssignModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 overflow-y-auto"
+        >
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
+            <div className="fixed inset-0 transition-opacity">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white rounded-lg shadow-xl"
+            >
+              <h3 className="text-lg font-medium leading-6 text-gray-900">
+                Assign Mall Owner
+              </h3>
+              <div className="mt-2">
+                <select
+                  className="w-full p-2 mt-1 border rounded-md"
+                  value={selectedMallOwner ? selectedMallOwner.id : ""}
+                  onChange={(e) =>
+                    setSelectedMallOwner(
+                      mallOwners.find((owner) => owner.id === e.target.value)
+                    )
+                  }
+                >
+                  <option value="">Select a Mall Owner</option>
+                  {mallOwners.map((owner) => (
+                    <option key={owner.id} value={owner.id}>
+                      {owner.firstName} {owner.lastName} ({owner.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end mt-4 space-x-2">
+                <button
+                  onClick={assignMallOwner}
+                  className="hover:bg-blue-700 px-4 py-2 text-white bg-blue-600 rounded"
+                >
+                  Assign
+                </button>
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  className="hover:bg-gray-200 px-4 py-2 text-gray-700 bg-gray-100 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
             </motion.div>
           </div>
         </motion.div>
@@ -522,6 +831,7 @@ const TheaterLocations = ({ userRole }) => {
       )}
 
       {renderAddLocationModal()}
+      {renderAssignModal()}
     </div>
   );
 };

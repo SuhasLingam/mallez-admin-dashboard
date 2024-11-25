@@ -288,20 +288,30 @@ const ROUTES = {
     },
   ],
   mallOwner: [
-    { path: "/", element: Dashboard },
     {
-      path: "/mall-statistics",
-      element: () => <div>Mall Statistics Page (To be implemented)</div>,
+      path: "/mall-owner",
+      element: () => <MallOwnerDashboard activeTab="malls" />,
     },
-    { path: "/mall-chains", element: MallChains },
-    { path: "/mall/:mallChainId", element: MallDetails },
-    { path: "/mall/:mallChainId/locations", element: MallLocations },
     {
-      path: "/mall/:mallChainId/location/:locationId",
-      element: LocationDetails,
+      path: "/mall-owner/mall-locations",
+      element: () => <MallOwnerDashboard activeTab="malls" />,
     },
-    { path: "/mall-owner", element: MallOwnerDashboard },
-    { path: "/location/:locationId", element: MallOwnerLocationDetails },
+    {
+      path: "/mall-owner/theater-locations",
+      element: () => <MallOwnerDashboard activeTab="theaters" />,
+    },
+    {
+      path: "/location/:locationId",
+      element: MallOwnerLocationDetails,
+    },
+    {
+      path: "/theater/:theaterChainId/location/:locationId",
+      element: TheaterLocationDetails,
+    },
+    {
+      path: "/profile",
+      element: Profile,
+    },
   ],
 };
 
@@ -372,11 +382,19 @@ function App() {
         path={path}
         element={
           <ProtectedRoute allowedRoles={[userRole]}>
-            <Element
-              userRole={userRole}
-              currentUserEmail={user.email}
-              updateUser={userManagement.updateUser}
-            />
+            {typeof Element === "function" ? (
+              <Element
+                userRole={userRole}
+                currentUserEmail={user.email}
+                updateUser={userManagement.updateUser}
+              />
+            ) : (
+              <Element
+                userRole={userRole}
+                currentUserEmail={user.email}
+                updateUser={userManagement.updateUser}
+              />
+            )}
           </ProtectedRoute>
         }
       />

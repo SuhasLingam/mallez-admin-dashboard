@@ -14,7 +14,6 @@ import {
   FaPlus,
   FaSearch,
   FaMapMarkerAlt,
-  FaFilm,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 import { motion, AnimatePresence } from "framer-motion";
@@ -109,12 +108,8 @@ const TheaterChains = ({ userRole }) => {
     }
   };
 
-  const filteredTheaterChains = theaterChains.filter(
-    (theaterChain) =>
-      theaterChain?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      theaterChain?.description
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase())
+  const filteredTheaterChains = theaterChains.filter((theaterChain) =>
+    theaterChain.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const renderForm = () => (
@@ -130,7 +125,7 @@ const TheaterChains = ({ userRole }) => {
               : newTheaterChain.title
           }
           onChange={handleInputChange}
-          className="focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full px-3 py-2 mt-1 text-gray-700 border border-gray-300 rounded-md shadow-sm"
+          className="focus:ring-2 focus:ring-blue-500 block w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
           required
         />
       </div>
@@ -146,7 +141,7 @@ const TheaterChains = ({ userRole }) => {
               : newTheaterChain.description
           }
           onChange={handleInputChange}
-          className="focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full px-3 py-2 mt-1 text-gray-700 border border-gray-300 rounded-md shadow-sm"
+          className="focus:ring-2 focus:ring-blue-500 block w-full px-4 py-2 mt-1 border border-gray-300 rounded-md"
           rows="3"
           required
         />
@@ -155,13 +150,13 @@ const TheaterChains = ({ userRole }) => {
         <button
           type="button"
           onClick={() => setIsModalOpen(false)}
-          className="hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-gray-700 transition-colors duration-200 bg-gray-100 rounded-md"
+          className="hover:bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 bg-indigo-600 rounded-md"
+          className="hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md"
         >
           {editingTheaterChain ? "Update" : "Add"} Theater Chain
         </button>
@@ -191,23 +186,27 @@ const TheaterChains = ({ userRole }) => {
             <div className="flex space-x-2">
               <Link
                 to={`/theater/${theaterChain.id}/locations`}
-                className="hover:bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors duration-200 bg-blue-500 rounded"
+                className="hover:bg-blue-600 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded"
               >
                 <FaMapMarkerAlt className="inline-block mr-2" />
                 View Locations
               </Link>
-              <button
-                onClick={() => handleEdit(theaterChain)}
-                className="hover:text-indigo-900 p-2 text-indigo-600 transition-colors duration-200"
-              >
-                <FaEdit className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => handleDelete(theaterChain.id)}
-                className="hover:text-red-900 p-2 text-red-600 transition-colors duration-200"
-              >
-                <FaTrash className="w-5 h-5" />
-              </button>
+              {userRole === "admin" && (
+                <>
+                  <button
+                    onClick={() => handleEdit(theaterChain)}
+                    className="hover:text-indigo-900 p-2 text-indigo-600"
+                  >
+                    <FaEdit className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(theaterChain.id)}
+                    className="hover:text-red-900 p-2 text-red-600"
+                  >
+                    <FaTrash className="w-5 h-5" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </motion.div>
@@ -216,91 +215,50 @@ const TheaterChains = ({ userRole }) => {
   );
 
   return (
-    <div className="sm:px-6 lg:px-8 container px-4 py-8 mx-auto">
-      <div className="sm:flex-row sm:items-center flex flex-col justify-between mb-6">
-        <h2 className="sm:text-3xl sm:mb-0 mb-4 text-2xl font-bold text-gray-900">
-          Theater Chains Management
-        </h2>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center px-4 py-2 text-sm font-medium text-white transition-colors duration-200 bg-indigo-600 rounded-md"
+    <div className="container px-4 py-8 mx-auto">
+      {renderTheaterChainsList()}
+      {isModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-10 overflow-y-auto"
+          aria-labelledby="modal-title"
+          role="dialog"
+          aria-modal="true"
         >
-          <FaPlus className="mr-2" />
-          Add Theater Chain
-        </button>
-      </div>
-
-      <div className="mb-6">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search theater chains..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="focus:border-blue-500 focus:outline-none focus:ring w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-white border rounded-lg"
-          />
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3">
-            <FaSearch className="text-gray-400" />
+          <div className="sm:block sm:p-0 flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center">
+            <div
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              aria-hidden="true"
+            ></div>
+            <span
+              className="sm:inline-block sm:align-middle sm:h-screen hidden"
+              aria-hidden="true"
+            >
+              &#8203;
+            </span>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="sm:my-8 sm:align-middle sm:max-w-lg sm:w-full inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl"
+            >
+              <div className="sm:p-6 sm:pb-4 px-4 pt-5 pb-4 bg-white">
+                <h3
+                  className="mb-4 text-lg font-medium leading-6 text-gray-900"
+                  id="modal-title"
+                >
+                  {editingTheaterChain
+                    ? "Edit Theater Chain"
+                    : "Add New Theater Chain"}
+                </h3>
+                {renderForm()}
+              </div>
+            </motion.div>
           </div>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin w-32 h-32 border-t-2 border-b-2 border-indigo-500 rounded-full"></div>
-        </div>
-      ) : theaterChains.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-500">No theater chains found</p>
-        </div>
-      ) : (
-        renderTheaterChainsList()
+        </motion.div>
       )}
-
-      <AnimatePresence>
-        {isModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-10 overflow-y-auto"
-            aria-labelledby="modal-title"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="sm:block sm:p-0 flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-              <div
-                className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
-                aria-hidden="true"
-              ></div>
-              <span
-                className="sm:inline-block sm:align-middle sm:h-screen hidden"
-                aria-hidden="true"
-              >
-                &#8203;
-              </span>
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="sm:my-8 sm:align-middle sm:max-w-lg sm:w-full inline-block overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl"
-              >
-                <div className="sm:p-6 sm:pb-4 px-4 pt-5 pb-4 bg-white">
-                  <h3
-                    className="mb-4 text-lg font-medium leading-6 text-gray-900"
-                    id="modal-title"
-                  >
-                    {editingTheaterChain
-                      ? "Edit Theater Chain"
-                      : "Add New Theater Chain"}
-                  </h3>
-                  {renderForm()}
-                </div>
-              </motion.div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
