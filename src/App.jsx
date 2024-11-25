@@ -39,6 +39,9 @@ import MallLocations from "./components/mallManagement/MallLocations";
 import LocationDetails from "./components/mallManagement/LocationDetails";
 import MallOwnerDashboard from "./components/mallOwner/MallOwnerDashboard";
 import MallOwnerLocationDetails from "./components/mallOwner/MallOwnerLocationDetails";
+import TheaterChains from "./components/theaterManagement/TheaterChains";
+import TheaterLocations from "./components/theaterManagement/TheaterLocations";
+import TheaterLocationDetails from "./components/theaterManagement/TheaterLocationDetails";
 
 // Import services and utilities
 import { firebaseConfig, db, auth } from "./services/firebaseService";
@@ -276,6 +279,12 @@ const ROUTES = {
     {
       path: "/mall/:mallChainId/location/:locationId",
       element: LocationDetails,
+    },
+    { path: "/theater-chains", element: TheaterChains },
+    { path: "/theater/:theaterChainId/locations", element: TheaterLocations },
+    {
+      path: "/theater/:theaterChainId/location/:locationId",
+      element: TheaterLocationDetails,
     },
   ],
   mallOwner: [
