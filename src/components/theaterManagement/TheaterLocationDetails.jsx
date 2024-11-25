@@ -9,7 +9,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { db, storage } from "../../services/firebaseService";
+import { db, storage, auth } from "../../services/firebaseService";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   FaEdit,
@@ -83,6 +83,7 @@ const TheaterLocationDetails = ({ userRole }) => {
     },
   });
   const [activeCategory, setActiveCategory] = useState("All");
+  const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
     fetchLocationDetails();
@@ -237,36 +238,98 @@ const TheaterLocationDetails = ({ userRole }) => {
     setIsLoading(true);
 
     try {
-      const collectionPath = `theaterChains/${theaterChainId}/locations/${locationId}/${
-        modalType === "movie" ? "currentMovies" : `${modalType}s`
-      }`;
+      if (!auth.currentUser) {
+        toast.error("You must be logged in to perform this action");
+        return;
+      }
 
-      const collectionRef = collection(db, collectionPath);
-
-      const itemData = {
+      let itemData = {
         ...newItem[modalType],
-        ...(modalType === "screen" && {
+        updatedBy: auth.currentUser.uid,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Handle image upload for both concessions and movies
+      if (modalType === "concession" || modalType === "movie") {
+        let imageUrl = newItem[modalType].imageUrl;
+
+        if (imageFile) {
+          try {
+            const storageRef = ref(
+              storage,
+              `${modalType}_images/${Date.now()}_${imageFile.name.replace(
+                /[^a-zA-Z0-9.]/g,
+                "_"
+              )}`
+            );
+
+            const metadata = {
+              contentType: imageFile.type,
+              customMetadata: {
+                uploadedBy: auth.currentUser.uid,
+                uploadedAt: new Date().toISOString(),
+              },
+            };
+
+            const uploadResult = await uploadBytes(
+              storageRef,
+              imageFile,
+              metadata
+            );
+            imageUrl = await getDownloadURL(uploadResult.ref);
+          } catch (uploadError) {
+            console.error("Error uploading image:", uploadError);
+            if (uploadError.code === "storage/unauthorized") {
+              toast.error("You don't have permission to upload images");
+            } else {
+              toast.error("Failed to upload image: " + uploadError.message);
+            }
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Add image URL to the item data
+        itemData = {
+          ...itemData,
+          imageUrl,
+        };
+
+        // Add specific fields for concessions
+        if (modalType === "concession") {
+          itemData.price = parseFloat(newItem.concession.price) || 0;
+        }
+      }
+
+      // Add specific fields based on modal type
+      if (modalType === "screen") {
+        itemData = {
+          ...itemData,
           capacity: parseInt(newItem.screen.capacity) || 0,
-        }),
-        ...(modalType === "movie" && {
+        };
+      } else if (modalType === "movie") {
+        itemData = {
+          ...itemData,
           movieName: newItem.movie.movieName,
-          imageUrl: newItem.movie.imageUrl,
           showTimes: newItem.movie.showTimes.map((st) => ({
             time: st.time || "",
             screen: st.screen || "",
             price: parseFloat(st.price) || 0,
           })),
-        }),
-        ...(modalType === "concession" && {
-          price: parseFloat(newItem.concession.price) || 0,
-        }),
-      };
+        };
+      }
+
+      const collectionPath = `theaterChains/${theaterChainId}/locations/${locationId}/${
+        modalType === "movie" ? "currentMovies" : `${modalType}s`
+      }`;
 
       if (editingItem) {
         await updateDoc(doc(db, collectionPath, editingItem.id), itemData);
         toast.success(`${modalType} updated successfully`);
       } else {
-        await addDoc(collectionRef, itemData);
+        itemData.createdBy = auth.currentUser.uid;
+        itemData.createdAt = new Date().toISOString();
+        await addDoc(collection(db, collectionPath), itemData);
         toast.success(`${modalType} added successfully`);
       }
 
@@ -274,7 +337,11 @@ const TheaterLocationDetails = ({ userRole }) => {
       fetchLocationDetails();
     } catch (error) {
       console.error(`Error saving ${modalType}:`, error);
-      toast.error(`Failed to save ${modalType}`);
+      if (error.code === "permission-denied") {
+        toast.error("You don't have permission to perform this action");
+      } else {
+        toast.error(`Failed to save ${modalType}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -283,7 +350,7 @@ const TheaterLocationDetails = ({ userRole }) => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
-    setModalType(null);
+    setImageFile(null);
     setNewItem({
       screen: { name: "", capacity: 0, features: [] },
       movie: {
@@ -449,29 +516,58 @@ const TheaterLocationDetails = ({ userRole }) => {
       </FormField>
 
       <FormField
-        label="Movie Poster URL"
-        tooltip="Enter the URL of the movie poster image"
+        label="Movie Poster"
+        tooltip="Upload a poster image for the movie (Max 5MB)"
       >
-        <input
-          type="url"
-          value={newItem.movie.imageUrl}
-          onChange={(e) =>
-            setNewItem({
-              ...newItem,
-              movie: { ...newItem.movie, imageUrl: e.target.value },
-            })
-          }
-          className="focus:ring-2 focus:ring-blue-500 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
-          placeholder="Enter poster URL"
-          required
-        />
-        {newItem.movie.imageUrl && (
-          <img
-            src={newItem.movie.imageUrl}
-            alt="Movie Poster Preview"
-            className="object-cover h-32 mt-2 rounded"
+        <div className="space-y-2">
+          <input
+            type="file"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (file.size > 5 * 1024 * 1024) {
+                  toast.error("Image size should be less than 5MB");
+                  e.target.value = "";
+                  return;
+                }
+                if (!file.type.startsWith("image/")) {
+                  toast.error("Please upload an image file");
+                  e.target.value = "";
+                  return;
+                }
+                setImageFile(file);
+              }
+            }}
+            accept="image/*"
+            className="focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 block w-full text-sm text-gray-500"
           />
-        )}
+          {(imageFile || newItem.movie.imageUrl) && (
+            <div className="relative w-32 h-48 mt-2">
+              <img
+                src={
+                  imageFile
+                    ? URL.createObjectURL(imageFile)
+                    : newItem.movie.imageUrl
+                }
+                alt="Movie Poster Preview"
+                className="object-cover w-full h-full rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setImageFile(null);
+                  setNewItem({
+                    ...newItem,
+                    movie: { ...newItem.movie, imageUrl: "" },
+                  });
+                }}
+                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 text-white bg-red-500 rounded-full"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
       </FormField>
 
       <FormField
@@ -734,40 +830,50 @@ const TheaterLocationDetails = ({ userRole }) => {
       case "concessions":
         return (
           <>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex space-x-4">
-                {[
-                  "All",
-                  "Snacks",
-                  "Beverages",
-                  "Fast Food",
-                  "Ice Cream",
-                  "Coffee",
-                  "Pizza",
-                  "Candy",
-                ].map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-full transition-all ${
-                      activeCategory === category
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    {category !== "All" && getCategoryIcon(category)}
-                    <span>{category}</span>
-                  </button>
-                ))}
+            <div className="lg:flex-row lg:items-center lg:space-y-0 flex flex-col justify-between mb-8 space-y-6">
+              <div className="lg:w-auto relative w-full">
+                <div className="hide-scrollbar flex pb-2 overflow-x-auto">
+                  <div className="flex px-1 space-x-2">
+                    {[
+                      "All",
+                      "Snacks",
+                      "Beverages",
+                      "Fast Food",
+                      "Ice Cream",
+                      "Coffee",
+                      "Pizza",
+                      "Candy",
+                    ].map((category) => (
+                      <button
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        className={`flex items-center whitespace-nowrap px-4 py-2 rounded-full transition-all ${
+                          activeCategory === category
+                            ? "bg-blue-500 text-white shadow-md"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {category !== "All" && (
+                          <span className="mr-2">
+                            {getCategoryIcon(category)}
+                          </span>
+                        )}
+                        <span>{category}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
+
               <button
                 onClick={() => handleAddItem("concession")}
-                className="hover:bg-blue-600 flex items-center px-4 py-2 text-white transition-colors bg-blue-500 rounded-md"
+                className="hover:bg-blue-600 hover:shadow-lg lg:w-auto flex items-center justify-center w-full px-6 py-3 text-white transition-all duration-200 bg-blue-500 rounded-md shadow-md"
               >
                 <FaPlus className="mr-2" /> Add Concession
               </button>
             </div>
-            <div className="sm:grid-cols-2 lg:grid-cols-3 grid grid-cols-1 gap-6">
+
+            <div className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 grid grid-cols-1 gap-6">
               {concessions
                 .filter(
                   (c) =>
@@ -779,15 +885,27 @@ const TheaterLocationDetails = ({ userRole }) => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="hover:shadow-lg overflow-hidden transition-shadow bg-white rounded-lg shadow-md"
+                    className="group hover:shadow-xl hover:-translate-y-1 rounded-xl flex flex-col overflow-hidden transition-all duration-300 transform bg-white shadow-md"
                   >
-                    <div className="relative p-6">
-                      <div className="top-4 right-4 absolute flex space-x-2">
+                    <div className="relative h-48 overflow-hidden">
+                      {concession.imageUrl ? (
+                        <img
+                          src={concession.imageUrl}
+                          alt={concession.name}
+                          className="group-hover:scale-105 object-cover w-full h-full transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="bg-gray-50 flex items-center justify-center w-full h-full">
+                          <FaUtensils className="text-4xl text-gray-300" />
+                        </div>
+                      )}
+
+                      <div className="top-2 right-2 group-hover:opacity-100 absolute flex space-x-2 transition-opacity duration-200 opacity-0">
                         <button
                           onClick={() =>
                             handleEditItem("concession", concession)
                           }
-                          className="hover:bg-blue-50 p-2 text-blue-500 transition-colors rounded-full"
+                          className="hover:bg-blue-600 p-2 text-white transition-colors bg-blue-500 rounded-full shadow-lg"
                         >
                           <FaEdit />
                         </button>
@@ -795,17 +913,20 @@ const TheaterLocationDetails = ({ userRole }) => {
                           onClick={() =>
                             handleDeleteItem("concession", concession.id)
                           }
-                          className="hover:bg-red-50 p-2 text-red-500 transition-colors rounded-full"
+                          className="hover:bg-red-600 p-2 text-white transition-colors bg-red-500 rounded-full shadow-lg"
                         >
                           <FaTrash />
                         </button>
                       </div>
-                      <div className="flex items-center mb-4 space-x-3">
-                        <div className="p-3 text-blue-600 bg-blue-100 rounded-full">
+                    </div>
+
+                    <div className="flex-1 p-6">
+                      <div className="flex items-start mb-4 space-x-3">
+                        <div className="bg-blue-50 p-2 text-blue-600 rounded-lg">
                           {getCategoryIcon(concession.category)}
                         </div>
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-900">
+                          <h3 className="line-clamp-1 text-lg font-semibold text-gray-900">
                             {concession.name}
                           </h3>
                           <span className="text-sm text-gray-500">
@@ -813,15 +934,17 @@ const TheaterLocationDetails = ({ userRole }) => {
                           </span>
                         </div>
                       </div>
-                      <p className="mb-4 text-gray-600">
+
+                      <p className="line-clamp-2 mb-4 text-gray-600">
                         {concession.description}
                       </p>
+
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-2xl font-bold text-green-600">
                           ₹{concession.price}
                         </span>
                         <span
-                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                             concession.isAvailable
                               ? "bg-green-100 text-green-800"
                               : "bg-red-100 text-red-800"
@@ -832,6 +955,7 @@ const TheaterLocationDetails = ({ userRole }) => {
                             : "Out of Stock"}
                         </span>
                       </div>
+
                       {concession.variants &&
                         concession.variants.length > 0 && (
                           <div>
@@ -842,7 +966,7 @@ const TheaterLocationDetails = ({ userRole }) => {
                               {concession.variants.map((variant, index) => (
                                 <span
                                   key={index}
-                                  className="px-3 py-1 text-sm text-gray-800 bg-gray-100 rounded-full"
+                                  className="px-3 py-1 text-sm text-gray-700 bg-gray-100 rounded-full"
                                 >
                                   {variant}
                                 </span>
@@ -854,6 +978,22 @@ const TheaterLocationDetails = ({ userRole }) => {
                   </motion.div>
                 ))}
             </div>
+
+            {concessions.filter(
+              (c) => activeCategory === "All" || c.category === activeCategory
+            ).length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <FaUtensils className="mb-4 text-5xl text-gray-300" />
+                <p className="mb-2 text-xl font-medium text-gray-600">
+                  No concessions found
+                </p>
+                <p className="text-gray-500">
+                  {activeCategory === "All"
+                    ? "Start by adding some concessions"
+                    : `No items in ${activeCategory} category`}
+                </p>
+              </div>
+            )}
           </>
         );
       default:
@@ -906,6 +1046,82 @@ const TheaterLocationDetails = ({ userRole }) => {
           className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
           required
         />
+      </FormField>
+
+      <FormField
+        label="Description"
+        tooltip="Enter a description of the concession item"
+      >
+        <textarea
+          value={newItem.concession.description}
+          onChange={(e) =>
+            setNewItem({
+              ...newItem,
+              concession: {
+                ...newItem.concession,
+                description: e.target.value,
+              },
+            })
+          }
+          className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+          rows="3"
+          required
+        />
+      </FormField>
+
+      <FormField
+        label="Image"
+        tooltip="Upload an image of the concession item (Max 5MB)"
+      >
+        <div className="space-y-2">
+          <input
+            type="file"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                if (file.size > 5 * 1024 * 1024) {
+                  toast.error("Image size should be less than 5MB");
+                  e.target.value = "";
+                  return;
+                }
+                if (!file.type.startsWith("image/")) {
+                  toast.error("Please upload an image file");
+                  e.target.value = "";
+                  return;
+                }
+                setImageFile(file);
+              }
+            }}
+            accept="image/*"
+            className="focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 block w-full text-sm text-gray-500"
+          />
+          {(imageFile || newItem.concession.imageUrl) && (
+            <div className="relative w-32 h-32 mt-2">
+              <img
+                src={
+                  imageFile
+                    ? URL.createObjectURL(imageFile)
+                    : newItem.concession.imageUrl
+                }
+                alt="Preview"
+                className="object-cover w-full h-full rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setImageFile(null);
+                  setNewItem({
+                    ...newItem,
+                    concession: { ...newItem.concession, imageUrl: "" },
+                  });
+                }}
+                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 text-white bg-red-500 rounded-full"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
       </FormField>
 
       <FormField
@@ -992,19 +1208,89 @@ const TheaterLocationDetails = ({ userRole }) => {
         </FormField>
       </div>
 
-      <div className="flex justify-end space-x-2">
+      <FormField
+        label="Variants"
+        tooltip="Add variants like sizes or flavors (press Enter to add)"
+      >
+        <div className="space-y-2">
+          <input
+            type="text"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const value = e.target.value.trim();
+                if (value) {
+                  const newVariants = [...(newItem.concession.variants || [])];
+                  if (!newVariants.includes(value)) {
+                    newVariants.push(value);
+                    setNewItem({
+                      ...newItem,
+                      concession: {
+                        ...newItem.concession,
+                        variants: newVariants,
+                      },
+                    });
+                  }
+                  e.target.value = "";
+                }
+              }
+            }}
+            className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm"
+            placeholder="Type and press Enter to add variant"
+          />
+          <div className="flex flex-wrap gap-2">
+            {newItem.concession.variants?.map((variant, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center px-3 py-1 text-sm text-gray-800 bg-gray-100 rounded-full"
+              >
+                {variant}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newVariants = newItem.concession.variants.filter(
+                      (_, i) => i !== index
+                    );
+                    setNewItem({
+                      ...newItem,
+                      concession: {
+                        ...newItem.concession,
+                        variants: newVariants,
+                      },
+                    });
+                  }}
+                  className="hover:text-gray-700 ml-2 text-gray-500"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      </FormField>
+
+      <div className="flex justify-end pt-4 space-x-3 border-t">
         <button
           type="button"
           onClick={handleCloseModal}
           className="hover:bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md"
+          disabled={isLoading}
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="hover:bg-blue-600 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-md"
+          className="hover:bg-blue-700 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md"
+          disabled={isLoading}
         >
-          {editingItem ? "Update" : "Add"} Concession
+          {isLoading ? (
+            <>
+              <FaSpinner className="animate-spin mr-2" />
+              {editingItem ? "Updating..." : "Adding..."}
+            </>
+          ) : (
+            <>{editingItem ? "Update Concession" : "Add Concession"}</>
+          )}
         </button>
       </div>
     </form>
